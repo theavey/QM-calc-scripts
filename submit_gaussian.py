@@ -30,6 +30,7 @@ import re         # RegEx package for sorting data
 import glob       # Allows referencing file system/file names
 import readline   # Allows easier file input (with tab completion?)
 import subprocess # Allows for submitting commands to the shell
+import fileinput  # allows easy iteration over a file
 
 descrip = 'Create and submit a script to run a Gaussian job on SCC'
 
@@ -46,6 +47,10 @@ parser.add_argument('-t', '--time',
                     default='12:00:00')
 parser.add_argument('-b', '--batch', action='store_true',
                     help='create multiple scripts (batch job)')
+parser.add_argument('-x', '--template', default=None,
+                    help='template file for creating input from coords')
+parser.add_argument('-v', '--verbose', action='store_true',
+                    help='make program more verbose')
 args = parser.parse_args()
 
 # An input function that can prefill in the text entry
@@ -56,6 +61,40 @@ def rlinput(prompt, prefill=''):
    finally:
       readline.set_startup_hook()
 
+def create_gau_input(coord_name,template):
+    """This function takes as input a file with a set of molecular
+    coordinates (the form should not matter, it will just be copied
+    into the next file) and a template file that should be the header
+    for the desired calculation (including charge and multiplicity),
+    returns nothing, but creates a Gaussian input file ending with
+    '.com' """
+    out_name = coord_name.rsplit('.', 1)[0] + '.com'
+    with open(out_name, 'w') as out_file:
+        with open(template, 'r') as templ_file:
+            if args.verbose:
+                print('opened {}'.format(template))
+            for line in templ_file:
+                out_file.write(line)
+            if '\n' not in line:
+                out_file.write('\n')
+        with open(coord_name, 'r') as in_file:
+            if args.verbose:
+                print('opened {}'.format(coord_name))
+            for line in in_file:
+                if line.strip().isdigit():
+                    # the first line is the number of atoms
+                    continue
+                # XYZ files created by mathematica have a comment
+                # as the second line saying something like:
+                # "Created by mathematica". Obv. want to ignore that
+                if line.strip().startswith('Create'):
+                    continue
+                # else:
+                out_file.write(line)
+        out_file.write('\n\n\n')
+    if args.verbose:
+        print('created Gaussian input file {}'.format(out_name))
+
 in_name_list  =     glob.glob(args.in_name + '*')
 in_name_list.sort()        # sort files alphanumerically
 in_name_list.sort(key=len) # sort by length (because otherwise would
@@ -65,24 +104,36 @@ in_name_list.sort(key=len) # sort by length (because otherwise would
 
 num_files     = len(in_name_list)
 
+yes = ['y', 'yes', '1']
+
 if not args.batch:
     if num_files > 1:
         print('Multiple files starting with {}'.format(args.in_name))
-        print('What file name shall I use?')
-        in_name_list = [ rlinput('file name: ',args.in_name)]
+        if input('Did you mean to execute a batch job? ') in yes:
+            args.batch = True
+        else:
+            print('What file name shall I use?')
+            in_name_list = [ rlinput('file name: ',args.in_name)]
+
+if args.template:
+    for in_name in in_name_list:
+        create_gau_input(in_name, args.template)
+    in_name_list = glob.glob(args.in_name + '*.com')
+    in_name_list.sort()
+    in_name_list.sort(key=len)
 
 script_list = []
 
 for in_name in in_name_list:
     if in_name.endswith('.com'):
-        short_name = re.split('\.', in_name)[0]
+        short_name = in_name.rsplit('.', 1)[0]
         if not short_name + '.com' == in_name:
             raise SyntaxError('problem interpretting file name. ' +
                               'Period in file name?')
         out_name = short_name + '.out'
     elif '.' in in_name:
-        short_name      = re.split('\.', in_name)[0]
-        input_extension = re.split('\.', in_name)[-1]
+        short_name      = in_name.rsplit('.', 1)[0]
+        input_extension = in_name.rsplit('.', 1)[-1]
         if not short_name + '.' + input_extension == in_name:
             raise SyntaxError('problem interpretting file name. ' +\
                               'Period in file name?')
@@ -123,8 +174,6 @@ if not len(script_list) == len(in_name_list):
     # like to make sure everything input gets a script and all the
     # script names are there to be submitted.
     raise IOError('num scripts dif. from num names given')
-
-yes = ['y', 'yes', '1']
 
 if args.batch:
     if input('submit all jobs? ') in yes:
