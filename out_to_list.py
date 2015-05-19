@@ -91,6 +91,11 @@ method = 'nyd'
 gregex = re.compile(r"\s+\w+/")
 # QChem SF methods energy regex:
 sfenergy = re.compile('[=:]\s*-\d*\.\d*')
+# Gaussian DFT methods ground state energy regex:
+# (could use sfenergy, or combine into one)
+gdftenergy = re.complile(r'=\s*\d*\.\d*')
+# Gaussian TD-DFT methods excited state energies regex:
+tdgdftenergy = re.compile(r'\s-*\d+\.\d+\s+ev')
 
 with open(out_name, 'w') as out_file:
     for name in in_name_list:
@@ -120,14 +125,18 @@ with open(out_name, 'w') as out_file:
                     if line.startswith('#'):
                         gmethodmatch = gregex.search(line)
                         gmethod =re.search(r"\w+", gmethodmatch.group())
-                        if re.search(r"\w+", gmethod.group()):
+                        if gmethod:
                             try:
                                 method = methods[gmethod]
                             except KeyError:
                                 print('unknown Gaussian method. ' +
                                       'Assuming (g)dft.')
                                 method = 'gdft'
-                        if re.search(r'\btd\s*[(=]', line)
+                        if re.search(r'\btd\s*[(=]', line):
+                            method = 'td' + method
+                            # Note, this will cause problems if TD is
+                            # declared on a line before the
+                            # functional/method.
                     continue
                 if method is 'dft':
                     if line.startswith('total energy'):
@@ -158,12 +167,24 @@ with open(out_name, 'w') as out_file:
                         match = sfenergy.search(line)
                         energy_list.append(match.group()[2:])
                     continue
+                if method.endswith('gdft'):
+                    # Ground state energy search for (TD)DFT with Gauss
+                    if 'scf done' in line:
+                        match = gdftenergy.search(line)
+                        energy_list.append(match.group()[2:])
+                    continue
+                if method is 'tdgdft':
+                    if line.startswith('excited state'):
+                        match = tdgdftenergy.search(line)
+                        energy_list.append(match.group[:-3])
+                    continue
         if energy_list:
             # Only true if not empty
             out_file.write(str(energy_list) + '\n')
         i += 1
 
 print("Opened {0} files, and wrote data to {1}".format(i, out_name))
+print('Files processed for method {}'.format(method))
 
 
                 
