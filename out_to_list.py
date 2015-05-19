@@ -68,29 +68,43 @@ out_name = base_name + '_energies'
 
 # Define methods I might use that change how to process file.
 methods = {'wb97xd': 'dft', 'mp2': 'mp2', 'pbe50': 'sfdft',
-           'eom-ccsd': 'sf', 'hf': 'hf'}
+           'eom-ccsd': 'sf', 'hf': 'hf', 'pbe1pbe': 'gdft'}
 # reading more about regex, I really should use them. I could
 # define how it matches based on the method, as opposed to all
 # the If Then loops I currently have.
+# I could essentially have a dictionary of regular expressions and just
+# reference the appropriate one for the type of output it's reading.
+# Alternatively, I could just break it up into a lot of subroutines
+# that could be called depending on the type of output.
 
 i = 0
 # Initialize not knowing method used: "Not Yet Determined"
 method = 'nyd'
+
+# Gaussian method regex:
+# finds alphanumeric character string before a / and after a
+# whitespace character. Requires that the input be in the form
+# (method)/(something, normally basis set).
+# Are there methods/functionals with non-alphanumeric characters?
+# Maybe manual hybrid functions would be bad with this. I don't
+# currently remember their syntax.
+gregex = re.compile(r"\s+\w+/")
+# QChem SF methods energy regex:
+sfenergy = re.compile('[=:]\s*-\d*\.\d*')
 
 with open(out_name, 'w') as out_file:
     for name in in_name_list:
         energy_list = []
         with open(name, 'r') as in_file:
             for line in in_file:
-                # First line of file, not useful
-                # Note, in most places, these lines are "stripped" because
-                # they come with leading spaces, which messes with
-                # startswith and the split function, too I think.
+                line = line.lower().strip()
                 if method is 'nyd':
-                    if 'method' in line.lower() or
-                      'exchange' in line.lower():
+                    if 'method' in line or
+                      'exchange' in line:
                         # make the line into a list split by spaces
-                        linelist = re.split(' {1,}',line.lower().strip())
+                        linelist = re.split(' +',line)
+                        # could maybe shorten these next lines with
+                        # a Try Except construction
                         if linelist[-1] in methods:
                             method = methods[linelist[-1]]
                         else:
@@ -98,18 +112,34 @@ with open(out_name, 'w') as out_file:
                                 linelist[-1]))
                             print('Assuming output formatted as HF')
                             method = 'hf'
+                    if 'entering gaussian sys' in line:
+                        method = 'gaugen'
+                        # Gaussian output file, method undetermined
+                    continue
+                if method is 'gaugen':
+                    if line.startswith('#'):
+                        gmethodmatch = gregex.search(line)
+                        gmethod =re.search(r"\w+", gmethodmatch.group())
+                        if re.search(r"\w+", gmethod.group()):
+                            try:
+                                method = methods[gmethod]
+                            except KeyError:
+                                print('unknown Gaussian method. ' +
+                                      'Assuming (g)dft.')
+                                method = 'gdft'
+                        if re.search(r'\btd\s*[(=]', line)
                     continue
                 if method is 'dft':
-                    if line.strip().startswith('Total energy'):
+                    if line.startswith('total energy'):
                         # make the line into a list split by spaces
-                        linelist = re.split(' {1,}',line.strip())
+                        linelist = re.split(' +',line)
                         out_file.write(linelist[-1])
                         out_file.write('\n')
                     continue
                 if method is 'mp2':
                     if 'total energy' in line:
                         # make the line into a list split by spaces
-                        linelist = re.split(' {1,}',line.strip())
+                        linelist = re.split(' +',line)
                         out_file.write(linelist[-2])
                         out_file.write('\n')
                     continue
@@ -119,15 +149,13 @@ with open(out_name, 'w') as out_file:
                             # Ignore HF energy
                             continue
                         # use RegEx to find energy in the line:
-                        energy_search = re.compile('=\s*-\d*\.\d*')
-                        match = energy_search.search(line)
+                        match = sfenergy.search(line)
                         energy_list.append(match.group()[2:])
                     continue
                 if method is 'sfdft':
                     if 'otal energy' in line:
                         # use RegEx to find energy in the line:
-                        energy_search = re.compile('[=:]\s*-\d*\.\d*')
-                        match = energy_search.search(line)
+                        match = sfenergy.search(line)
                         energy_list.append(match.group()[2:])
                     continue
         if energy_list:
