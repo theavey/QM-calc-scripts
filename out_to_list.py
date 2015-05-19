@@ -93,7 +93,7 @@ gregex = re.compile(r"\s+\w+/")
 sfenergy = re.compile('[=:]\s*-\d*\.\d*')
 # Gaussian DFT methods ground state energy regex:
 # (could use sfenergy, or combine into one)
-gdftenergy = re.complile(r'=\s*\d*\.\d*')
+gdftenergy = re.compile(r'=\s*-\d*\.\d*')
 # Gaussian TD-DFT methods excited state energies regex:
 tdgdftenergy = re.compile(r'\s-*\d+\.\d+\s+ev')
 
@@ -104,8 +104,7 @@ with open(out_name, 'w') as out_file:
             for line in in_file:
                 line = line.lower().strip()
                 if method is 'nyd':
-                    if 'method' in line or
-                      'exchange' in line:
+                    if 'method' in line or 'exchange' in line:
                         # make the line into a list split by spaces
                         linelist = re.split(' +',line)
                         # could maybe shorten these next lines with
@@ -127,7 +126,7 @@ with open(out_name, 'w') as out_file:
                         gmethod =re.search(r"\w+", gmethodmatch.group())
                         if gmethod:
                             try:
-                                method = methods[gmethod]
+                                method = methods[gmethod.group()]
                             except KeyError:
                                 print('unknown Gaussian method. ' +
                                       'Assuming (g)dft.')
@@ -172,11 +171,18 @@ with open(out_name, 'w') as out_file:
                     if 'scf done' in line:
                         match = gdftenergy.search(line)
                         energy_list.append(match.group()[2:])
-                    continue
-                if method is 'tdgdft':
-                    if line.startswith('excited state'):
-                        match = tdgdftenergy.search(line)
-                        energy_list.append(match.group[:-3])
+                        continue
+                    # Note on this line below: because I don't set the
+                    # method name for TD methods in one step, the "is"
+                    # comparison here will fail, because they point at
+                    # different places, but the (slower) equality
+                    # comparison will work because it will go through
+                    # and actually compare each character.
+                    if method == 'tdgdft':
+                        if line.startswith('excited state'):
+                            match = tdgdftenergy.search(line)
+                            if match:
+                                energy_list.append(match.group()[:-3])
                     continue
         if energy_list:
             # Only true if not empty
@@ -184,7 +190,7 @@ with open(out_name, 'w') as out_file:
         i += 1
 
 print("Opened {0} files, and wrote data to {1}".format(i, out_name))
-print('Files processed for method {}'.format(method))
+print('Files processed for {} method.'.format(method))
 
 
                 
