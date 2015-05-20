@@ -110,6 +110,17 @@ plotArrayPES[fileName_String, opts:OptionsPattern[
 		data = importArrayPES[fileName];
 		If[OptionValue[gausTDDFT],
 			data = convTDDFT[data, FilterRules[{opts}, Options[convTDDFT]]],
+			If[data[[1,2]] > 0,
+				Print["Seems like file may be Gaussian TDDFT output."];
+				If[Input["Seems like file may be Gaussian TDDFT output."<>
+					"\nProcess accordingly?",True],
+					data = convTDDFT[data, FilterRules[{opts}, Options[convTDDFT]]];
+					data = data / 27.21139 (*because it still goes to convToeV after*),
+					"",
+					Print["input not recognized, assuming 'False'"]
+				],
+				""
+			];
 			If[OptionValue[convToeV],
 				data = convertToeV[data, FilterRules[{opts}, Options[convertToeV]]]
 			]
