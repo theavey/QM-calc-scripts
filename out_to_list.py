@@ -2,12 +2,12 @@
 
 ########################################################################
 #                                                                      #
-#                                                 #
+#                                                                      #
 #                                                                      #
 # Known issues:                                                        #
-# None                                                                 #
+# Methods which are declared with non-alphanumeric characters          #
 #                                                                      #
-# .                           #
+#                                                                      #
 #                                                                      #
 # This script was written by Thomas Heavey in 2015.                    #
 #        theavey@bu.edu     thomasjheavey@gmail.com                    #
@@ -36,10 +36,9 @@
 # be working on the newest version of python.
 
 import fileinput  # allows easy iteration over a file
-import sys        # For importing the arguments given
 import re         # RegEx package for sorting data
-import os.path    # Allows for checking if file already exists
 import glob       # Allows referencing file system/file names
+import argparse   # For parsing commandline arguments
 
 # Really should adapt to use argparse for parsing command line
 # arguments. see https://docs.python.org/2/library/argparse.html
@@ -48,8 +47,17 @@ import glob       # Allows referencing file system/file names
 # take it as a command line argument for ease. May not be any
 # faster as I already iterate through every line of the file.
 
+descrip = ('This function takes a base file name for output files and'+
+    ' makes a file basename_energies that is a list of the energies ' +
+    'from the the read output files.')
 
-base_name     =     sys.argv[1]
+parser = argparse.ArgumentParser(description=descrip)
+parser.add_argument('base_name', help='base name of files to read')
+parser.add_argument('-m', '--method',
+                    help='calculation method (changes file interp')
+args = parser.parse_args()
+
+base_name     =     args.base_name
 in_name_list  =     glob.glob(base_name + '*.out')
 num_files     = len(in_name_list)
 
@@ -68,7 +76,8 @@ out_name = base_name + '_energies'
 
 # Define methods I might use that change how to process file.
 methods = {'wb97xd': 'dft', 'mp2': 'mp2', 'pbe50': 'sfdft',
-           'eom-ccsd': 'sf', 'hf': 'hf', 'pbe1pbe': 'gdft'}
+           'eom-ccsd': 'sf', 'hf': 'hf', 'pbe1pbe': 'gdft',
+           'cis': 'gcis'}
 # reading more about regex, I really should use them. I could
 # define how it matches based on the method, as opposed to all
 # the If Then loops I currently have.
@@ -80,6 +89,9 @@ methods = {'wb97xd': 'dft', 'mp2': 'mp2', 'pbe50': 'sfdft',
 i = 0
 # Initialize not knowing method used: "Not Yet Determined"
 method = 'nyd'
+# If given as commandline argument, set with the given method
+if args.method:
+    method = methods[args.method.lower()]
 
 # Gaussian method regex:
 # finds alphanumeric character string before a / and after a
@@ -88,6 +100,8 @@ method = 'nyd'
 # Are there methods/functionals with non-alphanumeric characters?
 # Maybe manual hybrid functions would be bad with this. I don't
 # currently remember their syntax.
+# This has problems with CIS which uses parenthesis in the syntax.
+# Currently, just provide it as a command line argument with -m.
 gregex = re.compile(r"\s+\w+/")
 # QChem SF methods energy regex:
 sfenergy = re.compile('[=:]\s*-\d*\.\d*')
@@ -96,6 +110,9 @@ sfenergy = re.compile('[=:]\s*-\d*\.\d*')
 gdftenergy = re.compile(r'=\s*-\d*\.\d*')
 # Gaussian TD-DFT methods excited state energies regex:
 tdgdftenergy = re.compile(r'\s-*\d+\.\d+\s+ev')
+# Gaussian CIS ground state energy regex:
+# Goes to end of the line because given in scientific notation.
+gcisenergy = re.compile(r'eump2\s*=\s*-.+')
 
 with open(out_name, 'w') as out_file:
     for name in in_name_list:
@@ -183,6 +200,16 @@ with open(out_name, 'w') as out_file:
                             match = tdgdftenergy.search(line)
                             if match:
                                 energy_list.append(match.group()[:-3])
+                    continue
+                if method is 'gcis':
+                    if 'eump2' in line:
+                        match = gcisenergy.search(line)
+                        energy_list.append(match.group()[8:])
+                        continue
+                    if line.startswith('excited state'):
+                        match = tdgdftenergy.search(line)
+                        if match:
+                            energy_list.append(match.group()[:-3])
                     continue
         if energy_list:
             # Only true if not empty
