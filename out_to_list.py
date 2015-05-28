@@ -94,15 +94,10 @@ if args.method:
     method = methods[args.method.lower()]
 
 # Gaussian method regex:
-# finds alphanumeric character string before a / and after a
+# finds non-whitespace characters before a / and after a
 # whitespace character. Requires that the input be in the form
 # (method)/(something, normally basis set).
-# Are there methods/functionals with non-alphanumeric characters?
-# Maybe manual hybrid functions would be bad with this. I don't
-# currently remember their syntax.
-# This has problems with CIS which uses parenthesis in the syntax.
-# Currently, just provide it as a command line argument with -m.
-gregex = re.compile(r"\s+\w+/")
+gregex = re.compile(r"\s+\S+/")
 # QChem SF methods energy regex:
 sfenergy = re.compile('[=:]\s*-\d*\.\d*')
 # Gaussian DFT methods ground state energy regex:
@@ -140,7 +135,8 @@ with open(out_name, 'w') as out_file:
                 if method is 'gaugen':
                     if line.startswith('#'):
                         gmethodmatch = gregex.search(line)
-                        gmethod =re.search(r"\w+", gmethodmatch.group())
+                        if gmethodmatch:
+                            gmethod =re.search(r"\w+", gmethodmatch.group())
                         if gmethod:
                             try:
                                 method = methods[gmethod.group()]
