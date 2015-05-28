@@ -33,7 +33,7 @@ importArrayPES[fileName_] :=
   imported = 
    If[imported[[-1]] == {""}, imported[[1 ;; -2]], imported]]
    
-makePlotPES[data_, opts:OptionsPattern[{makePlotPES,ListLinePlot}]]:=
+makePlotPES[data_, opts:OptionsPattern[{makePlotPES, ListLinePlot, ListPlot3D}]]:=
 	Module[{numPoints, plotdata, range, rangeSize, graph, midpoint},
 		debugPrint["Attempting to plot with opts:"];
 		debugPrint[opts];
@@ -43,17 +43,33 @@ makePlotPES[data_, opts:OptionsPattern[{makePlotPES,ListLinePlot}]]:=
 			numPoints = Length[data];
 			plotdata = data
 		];
+    dimensions = OptionValue[dimensions];
+    If[dimensions > 1,
+      numPoints = Length[data]^(1 / dimensions);
+      plotdata = Partition[#, numPoints] & /@ plotdata;
+      If[dimensions > 2, Print["I don't know how to handle dimensions > 2"]]
+    ];
 		midpoint = Ceiling[numPoints / 2];
 		rangeSize = (Min[data] - Max[data])/10;
 		range = {Min[data] + rangeSize, Max[data] - rangeSize};
 		debugPrint["making plot with options"];
 		debugPrint[FilterRules[{opts}, Options[ListLinePlot]]];
-		graph = Show[
-			ListLinePlot[plotdata, 
-				FilterRules[{opts}, Options[ListLinePlot]], 
-				PlotRange -> {{1, numPoints}, range}
-			], 
-			Graphics[Line[Transpose[{{midpoint, midpoint}, range}]]]];
+    If[dimensions == 1,
+      graph = Show[
+        ListLinePlot[plotdata,
+          FilterRules[{opts}, Options[ListLinePlot]],
+          PlotRange -> {{1, numPoints}, range}
+        ],
+        Graphics[Line[Transpose[{{midpoint, midpoint}, range}]]]],
+      If[dimensions == 2,
+        graph =
+          ListPlot3D[plotdata,
+            PlotStyle->Automatic,
+            FilterRules[{opts}, Options[ListPlot3D]],
+            PlotRange -> {{1, numPoints}, {1, numPoints}, range}
+          ]
+        ]
+      ];
 		debugPrint["made Plot"];
 		If[StringQ[OptionValue[export]],
 			Export[OptionValue[export] <> ".eps", graph],
@@ -104,17 +120,20 @@ plotPES[fileName_, opts:OptionsPattern[
 	]
 
 plotArrayPES[fileName_String, opts:OptionsPattern[
-			{plotArrayPES, ListLinePlot, convertToeV, convTDDFT, makePlotPES}
+			{plotArrayPES, ListLinePlot, convertToeV, convTDDFT, makePlotPES, ListContourPlot3D}
 		]]:=
-	Module[{data},
+	Module[{data,tempopts},
 		data = importArrayPES[fileName];
+		tempopts = {opts} ~Join~ Options[plotArrayPES];
+		(*tempopts is the set of options to be passed to all subfunctions
+		after appropriate filtering.*)
 		If[OptionValue[gausTDDFT],
-			data = convTDDFT[data, FilterRules[{opts}, Options[convTDDFT]]],
+			data = convTDDFT[data, FilterRules[{tempopts}, Options[convTDDFT]]],
 			If[data[[1,2]] > 0,
 				Print["Seems like file may be Gaussian TDDFT output."];
 				If[Input["Seems like file may be Gaussian TDDFT output."<>
 					"\nProcess accordingly?",True],
-					data = convTDDFT[data, FilterRules[{opts}, Options[convTDDFT]]];
+					data = convTDDFT[data, FilterRules[{tempopts}, Options[convTDDFT]]];
 					data = data / 27.21139 (*because it still goes to convToeV after*),
 					"",
 					Print["input not recognized, assuming 'False'"]
@@ -122,26 +141,32 @@ plotArrayPES[fileName_String, opts:OptionsPattern[
 				""
 			];
 			If[OptionValue[convToeV],
-				data = convertToeV[data, FilterRules[{opts}, Options[convertToeV]]]
+				data = convertToeV[data, FilterRules[{tempopts}, Options[convertToeV]]];
+				AppendTo[tempopts, {FrameLabel -> {"", "Rel. Energy / eV"}}]
 			]
 		];
 		debugPrint["Did data conversions, sending to makePlot with opts"];
-		debugPrint[FilterRules[{opts}, 
+		debugPrint[FilterRules[{tempopts},
 				{Options[makePlotPES], Options[ListLinePlot]}
 			]];
-		debugPrint["All opts:", opts];
+		debugPrint["All opts:", tempopts];
 		makePlotPES[data, array->True,
-			Sequence @@ FilterRules[{opts} ~Join~ Options[plotArrayPES],
-				{Options[makePlotPES], Options[ListLinePlot]}
+			FilterRules[{tempopts},
+				{Options[makePlotPES], Options[ListLinePlot], Options[ListPlot3D]}
 			]
 		]
 	]
 
-Options[makePlotPES] = {export->False, array->False}
+Options[makePlotPES] =
+    {
+      export -> False,
+      dimensions -> 1,
+      array -> False
+    }
 Options[plotArrayPES] = 
 	{
-		gausTDDFT->False, 
-		convToeV->True,
+		gausTDDFT -> False,
+		convToeV -> True,
 		PlotStyle -> Black, 
 		LabelStyle -> Black, 
 		InterpolationOrder -> 2, 
@@ -150,8 +175,8 @@ Options[plotArrayPES] =
 	}
 Options[plotPES] = 
 	{
-		convToeV->True,
-		PlotStyle -> Black, 
+		convToeV -> True,
+		PlotStyle -> Black,
 		LabelStyle -> Black,
 		InterpolationOrder -> 2, 
 		Frame -> True, 
