@@ -32,6 +32,14 @@ importArrayPES[fileName_] :=
   (*Check for empty element at end and remove if necessary*)
   imported = 
    If[imported[[-1]] == {""}, imported[[1 ;; -2]], imported]]
+
+Options[makePlotPES] =
+  (*I think options may need to be declared before the function is? For OptionsPattern to work?*)
+    {
+      export -> False,
+      dimensions -> 1,
+      array -> False
+    }
    
 makePlotPES[data_, opts:OptionsPattern[{makePlotPES, ListLinePlot, ListPlot3D}]]:=
 	Module[{numPoints, plotdata, range, rangeSize, graph, midpoint},
@@ -102,6 +110,16 @@ convertToeV[data_, opts:OptionsPattern[]]:=
 		tempdata
 	]
 
+Options[plotPES] =
+    {
+      convToeV -> True,
+      PlotStyle -> Black,
+      LabelStyle -> Black,
+      InterpolationOrder -> 2,
+      Frame -> True,
+      FrameTicks -> {{True, False}, {Array[{#,""}&,100], False}}
+    }
+
 plotPES[fileName_, opts:OptionsPattern[
 			{plotPES, ListLinePlot, convertToeV, convTDDFT, makePlotPES}
 		]]:=
@@ -119,8 +137,19 @@ plotPES[fileName_, opts:OptionsPattern[
 		]
 	]
 
+Options[plotArrayPES] =
+    {
+      gausTDDFT -> False,
+      convToeV -> True,
+      PlotStyle -> Black,
+      LabelStyle -> Black,
+      InterpolationOrder -> 2,
+      Frame -> True,
+      FrameTicks -> {{True, False}, {Array[{#,""}&,100], False}}
+    }
+
 plotArrayPES[fileName_String, opts:OptionsPattern[
-			{plotArrayPES, ListLinePlot, convertToeV, convTDDFT, makePlotPES, ListContourPlot3D}
+	    {plotArrayPES, ListLinePlot, convertToeV, convTDDFT, makePlotPES, ListContourPlot3D}
 		]]:=
 	Module[{data,tempopts},
 		data = importArrayPES[fileName];
@@ -157,31 +186,6 @@ plotArrayPES[fileName_String, opts:OptionsPattern[
 		]
 	]
 
-Options[makePlotPES] =
-    {
-      export -> False,
-      dimensions -> 1,
-      array -> False
-    }
-Options[plotArrayPES] = 
-	{
-		gausTDDFT -> False,
-		convToeV -> True,
-		PlotStyle -> Black, 
-		LabelStyle -> Black, 
-		InterpolationOrder -> 2, 
-		Frame -> True, 
-		FrameTicks -> {{True, False}, {Array[{#,""}&,100], False}}
-	}
-Options[plotPES] = 
-	{
-		convToeV -> True,
-		PlotStyle -> Black,
-		LabelStyle -> Black,
-		InterpolationOrder -> 2, 
-		Frame -> True, 
-		FrameTicks -> {{True, False}, {Array[{#,""}&,100], False}}
-	}
 
 
 
