@@ -4,7 +4,7 @@ import re
 
 filename = "testg.out"
 
-def findgeoms(filename):
+def findallgeoms(filename):
     """A function that takes a file name and returns a list of
     geometries."""
     relevantelem = [1,3,4,5]
@@ -21,16 +21,31 @@ def findgeoms(filename):
         , re.DOTALL)
 
     with open(filename, 'r') as file:
-        geoms = geomregex.search(file.read())
-        print(geoms.group(1))
-        mlgeoms = geoms.group(1)
-        for line in mlgeoms.split('\n'):
-            # Ignore blank lines:
-            if len(line) < 2:
-                continue
-            xyzelemstring = [line.split()[i] for i in relevantelem]
-            xyzelemnum = [float(i) for i in xyzelemstring]
-            xyzelemnum[0] = int(xyzelemstring[0])
-            print(xyzformat.format(*xyzelemnum))
+        allxyz = []
+        geoms = geomregex.finditer(file.read())
+        for geom in geoms:
+            thisxyz = []
+            mlgeom = geom.group(1)
+            for line in mlgeom.split('\n'):
+                # Ignore blank lines:
+                if len(line) < 2:
+                    continue
+                xyzelemstring = [line.split()[i] for i in relevantelem]
+                xyzelemnum = [float(i) for i in xyzelemstring]
+                xyzelemnum[0] = int(xyzelemstring[0])
+                thisxyz.append(xyzformat.format(*xyzelemnum))
+            allxyz.append(thisxyz)
 
-findgeoms(filename)
+    return(allxyz)
+# I don't know if I like this format. It would be reasonable for
+# Mathematica, but somewhat odd for Python. I guess for outputting
+# it though it won't be terrible because I can just double
+# iterate over the nested list, writing lines from the strings.
+# I'll need to pick a separator for between geometries maybe but that's
+# not a problem. Also with this format, should be easy to count number
+# of atoms.
+
+# Still need to have way to just find stationary points
+
+print(findallgeoms(filename))
+# Ugly because returned as list of list of strings
