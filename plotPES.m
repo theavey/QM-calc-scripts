@@ -18,7 +18,38 @@ $debugPrintFunction=Null&;
 (*$debugPrintFunction=Print[##]&*)
 (*Uncomment the line above to get more (maybe) useful output during evaluation*)
 
-importPES[fileName_] := 
+Options[plotArrayPES] =
+    {
+      gausTDDFT -> False,
+      convToeV -> True,
+      PlotStyle -> Black,
+      LabelStyle -> Black,
+      InterpolationOrder -> 2,
+      Frame -> True,
+      FrameTicks -> {{True, False}, {Array[{#,""}&,100], False}}
+    }
+
+Options[makePlotPES] =
+(*I think options may need to be declared before the function is? For OptionsPattern to work?*)
+    {
+      export -> False,
+      dimensions -> 1,
+      array -> False,
+      ignoreFirst -> 0,
+      ignoreLast -> 0
+    }
+
+Options[plotPES] =
+    {
+      convToeV -> True,
+      PlotStyle -> Black,
+      LabelStyle -> Black,
+      InterpolationOrder -> 2,
+      Frame -> True,
+      FrameTicks -> {{True, False}, {Array[{#,""}&,100], False}}
+    }
+
+importPES[fileName_] :=
  Flatten[Import[ToString[fileName], "Data"]]
  
 importArrayPES[fileName_] := 
@@ -33,16 +64,9 @@ importArrayPES[fileName_] :=
   imported = 
    If[imported[[-1]] == {""}, imported[[1 ;; -2]], imported]]
 
-Options[makePlotPES] =
-  (*I think options may need to be declared before the function is? For OptionsPattern to work?*)
-    {
-      export -> False,
-      dimensions -> 1,
-      array -> False
-    }
    
 makePlotPES[data_, opts:OptionsPattern[{makePlotPES, ListLinePlot, ListPlot3D}]]:=
-	Module[{numPoints, plotdata, range, rangeSize, graph, midpoint},
+	Module[{numPoints, plotdata, range, rangeSize, graph, midpoint, dims},
 		debugPrint["Attempting to plot with opts:"];
 		debugPrint[opts];
 		If[OptionValue[array],
@@ -51,25 +75,29 @@ makePlotPES[data_, opts:OptionsPattern[{makePlotPES, ListLinePlot, ListPlot3D}]]
 			numPoints = Length[data];
 			plotdata = data
 		];
-    dimensions = OptionValue[dimensions];
-    If[dimensions > 1,
-      numPoints = Length[data]^(1 / dimensions);
+    dims = OptionValue[dimensions];
+    If[dims > 1,
+      numPoints = Length[data]^(1 / dims);
       plotdata = Partition[#, numPoints] & /@ plotdata;
-      If[dimensions > 2, Print["I don't know how to handle dimensions > 2"]]
+      If[dims > 2, Print["I don't know how to handle dimensions > 2"]]
     ];
+    plotdata = plotdata[[
+        1 + OptionValue[ignoreFirst];;
+        -(1 + OptionValue[ignoreLast])
+        ]];
 		midpoint = Ceiling[numPoints / 2];
-		rangeSize = (Min[data] - Max[data])/10;
-		range = {Min[data] + rangeSize, Max[data] - rangeSize};
+		rangeSize = (Min[plotdata] - Max[plotdata])/10;
+		range = {Min[plotdata] + rangeSize, Max[plotdata] - rangeSize};
 		debugPrint["making plot with options"];
 		debugPrint[FilterRules[{opts}, Options[ListLinePlot]]];
-    If[dimensions == 1,
+    If[dims == 1,
       graph = Show[
         ListLinePlot[plotdata,
           FilterRules[{opts}, Options[ListLinePlot]],
           PlotRange -> {{1, numPoints}, range}
         ],
         Graphics[Line[Transpose[{{midpoint, midpoint}, range}]]]],
-      If[dimensions == 2,
+      If[dims == 2,
         graph =
           ListPlot3D[plotdata,
             PlotStyle->Automatic,
@@ -110,15 +138,6 @@ convertToeV[data_, opts:OptionsPattern[]]:=
 		tempdata
 	]
 
-Options[plotPES] =
-    {
-      convToeV -> True,
-      PlotStyle -> Black,
-      LabelStyle -> Black,
-      InterpolationOrder -> 2,
-      Frame -> True,
-      FrameTicks -> {{True, False}, {Array[{#,""}&,100], False}}
-    }
 
 plotPES[fileName_, opts:OptionsPattern[
 			{plotPES, ListLinePlot, convertToeV, convTDDFT, makePlotPES}
@@ -137,16 +156,6 @@ plotPES[fileName_, opts:OptionsPattern[
 		]
 	]
 
-Options[plotArrayPES] =
-    {
-      gausTDDFT -> False,
-      convToeV -> True,
-      PlotStyle -> Black,
-      LabelStyle -> Black,
-      InterpolationOrder -> 2,
-      Frame -> True,
-      FrameTicks -> {{True, False}, {Array[{#,""}&,100], False}}
-    }
 
 plotArrayPES[fileName_String, opts:OptionsPattern[
 	    {plotArrayPES, ListLinePlot, convertToeV, convTDDFT, makePlotPES, ListContourPlot3D}
