@@ -6,7 +6,8 @@ filename = "testg.out"
 
 def findallgeoms(filename):
     """A function that takes a file name and returns a list of
-    geometries."""
+    geometries. Works with Gaussian output, haven't checked with
+    Q-Chem."""
     relevantelem = [1,3,4,5]
     xyzformat = '{:>2}      {: f}   {: f}   {: f}'
     geomregex = re.compile(
@@ -47,5 +48,6 @@ def findallgeoms(filename):
 
 # Still need to have way to just find stationary points
 
-print(findallgeoms(filename))
+if __name__ == "__main__":
+    print(findallgeoms(filename))
 # Ugly because returned as list of list of strings
