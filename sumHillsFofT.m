@@ -28,7 +28,7 @@ plotHills::usage = "plotHills[list of matrices, options] Takes output of sumHill
 plotHillsPoint::usage = "plotHllsPoint[list of matrices, {x, y}, options] takes output of
   sumHills and plots the selected point as a function of time."
 
-Begin["`Private`"]  Begin Private Context
+Begin["`Private`"]  (* Begin Private Context *)
 
 Options[sumHills] =
     {
@@ -60,12 +60,17 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
     (* Find size (dimensions) of grid needed. *)
     gridLengthCV1 = Ceiling[(minMaxCV1[[2]] - minMaxCV1[[1]]) / gridSize];
     gridLengthCV2 = Ceiling[(minMaxCV2[[2]] - minMaxCV2[[1]]) / gridSize];
+    (* Create gaussian matrix that will be translated as needed later. *)
     gaussianMatrix = GaussianMatrix[
       {{gridLengthCV1, gridLengthCV2},
         {sigmaCV1 / gridSize, sigmaCV2 / gridSize}},
       Standardized -> False,
       Method -> "Gaussian"]
         * 2 Pi (sigmaCV1 * sigmaCV2) / gridSize^2;
+    (* Function that will first find the offset of the current point
+    to the center of gaussian matrix scaled to the grid.
+    Then, it will rotate the center to that point using RotateLeft.
+    Finally, it will crop the matrix to the size of the grid.*)
     scaledRotatedGaussMat[row_] := Return[
       RotateLeft[
         gaussianMatrix * row[[6]],
@@ -74,12 +79,18 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
           gridLengthCV2 - (row[[3]] - minMaxCV2[[1]])/gridSize}
         ]][[1 ;; gridLengthCV1, 1 ;; gridLengthCV2]]
       ];
-    timedGaussians = ParallelMap[scaledRotatedGaussMat,rawdata];
+    (* Apply the function, in parallel to save some time hopefully.*)
+    timedGaussians = ParallelMap[scaledRotatedGaussMat, rawdata];
+    (* Sum the consecutive Gaussians. This may be the slowest step,
+    but I don't know how it can be done in parallel.
+    It could be chunked into time steps which are then summed
+    in parallel, but the accumulation still seems like it would
+    need to be done in serial.*)
     accumulatedGaussians = Accumulate[timedGaussians]
   ]
 
 
 
-End[]  End Private Context
+End[]  (* End Private Context *)
 
 EndPackage[]
