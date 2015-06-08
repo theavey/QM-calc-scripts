@@ -43,8 +43,11 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
       sigmaCV1, sigmaCV2,
       minMaxCV1, minMaxCV2,
       gridLengthCV1, gridLengthCV2,
+      gridSize,
       gaussianMatrix,
       scaledRotatedGaussMat,
+      timedGaussians,
+      accumulatedGaussians
     },
     (* Import data, first two lines are comments *)
     rawdata = Import[hillsFileName, "Table"][[3;;]];
