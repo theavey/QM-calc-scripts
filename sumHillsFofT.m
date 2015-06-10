@@ -35,8 +35,9 @@ Options[sumHills] =
     {
       GridSize -> 0.1,
       name -> Automatic
-    }
+    };
 
+(* todo change Module to Block and check functionality! *)
 sumHills[hillsFileName_, OptionsPattern[]]:=
   Module[
     {
@@ -115,11 +116,12 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
           DistributedContexts -> Automatic],
           1]],
       accumulatedGaussians];
+    (* Set downvalues of output *)
+    Evaluate[variableName][getData] = withCoords;
+    Evaluate[variableName][getMinMax] = {minMaxCV1, minMaxCV2};
+    Evaluate[variableName][getGridSize] = gridSize;
+    Evaluate[variableName][getGrid] = {gridCV1, gridCV2};
     (* Set upvalues of output *)
-    Evaluate[variableName] /: getData[Evaluate[variableName]] = withCoords;
-    Evaluate[variableName] /: MinMax[Evaluate[variableName]] = {minMaxCV1, minMaxCV2};
-    Evaluate[variableName] /: GridSize[Evaluate[variableName]] = gridSize;
-    Evaluate[variableName] /: getGrid[Evaluate[variableName]] = {gridCV1, gridCV2};
     Evaluate[variableName] /: Plot[Evaluate[variableName],
       opts:OptionsPattern[plotHills]] :=
         plotHills[Evaluate[variableName], opts];
@@ -142,7 +144,7 @@ Options[plotHills] =
         Options[ListPlot3D],
       Sequence @@
         Options[Manipulate]
-    }
+    };
 
 plotHills[dataName_, opts:OptionsPattern[plotHills]]:=
   Module[
@@ -150,17 +152,17 @@ plotHills[dataName_, opts:OptionsPattern[plotHills]]:=
       data,
       tempopts,
       timepoint,
-      size,
+      timeLength,
       plot
     },
     tempopts = {opts} ~Join~ Options[plotHills];
-    data = getData[dataName];
-    size = Length[data];
+    data = dataName[getData];
+    timeLength = Length[data];
     timepoint = If[
         OptionValue[timePoint] === Automatic,
         -1,
         If[
-          Abs[OptionValue[timePoint]] > size,
+          Abs[OptionValue[timePoint]] > timeLength,
           Print["Given timepoint not in data, using last point"];
           -1,
           OptionValue[timePoint]
@@ -170,7 +172,7 @@ plotHills[dataName_, opts:OptionsPattern[plotHills]]:=
       plot = Manipulate[
           ListPlot3D[data[[i]],
             FilterRules[{tempopts}, Options[ListPlot3D]]],
-          {{i, size, "Time Point"}, 1, size, 1}
+          {{i, timeLength, "Time Point"}, 1, timeLength, 1}
           (*FilterRules[{tempopts}, Options[Manipulate]]*)
       ],
       plot = ListPlot3D[data[[timepoint]],
@@ -182,46 +184,75 @@ plotHills[dataName_, opts:OptionsPattern[plotHills]]:=
 Options[plotHillsPoint] =
     {
       dynamic -> False,
-      ##&@@ Options[ListLinePlot]
-    }
+      PlotRange -> All,
+      ##&@@ Options[ListLinePlot],
+      ##&@@ Options[ListDensityPlot]
+    };
 
 plotHillsPoint[dataName_, {x_:Null, y_:Null}, opts:OptionsPattern[]]:=
   Module[
     {
-      data,
+      data, lastTimePoint,
       tempopts,
       minMaxCV1, minMaxCV2,
       xChecked, yChecked,
+      nearestFunction, nearestFunctionxy,
       location, locationxy,
       plotData,
       plot
     },
     tempopts = {opts} ~Join~ Options[plotHillsPoint];
-    data = getData[dataName];
-    {minMaxCV1, minMaxCV2} = MinMax[dataName];
-    If[OptionValue[dynamic],
-      Return["dynamic not yet implemented. Nice try."],
-      (* Check x and y values. Use Mean in invalid *)
-      xChecked = If[
-        x === Null || ! IntervalMemberQ[Interval[minMaxCV1], x],
-        Print["Invalid x coordinate."];
-        Mean[minMaxCV1],
-        x];
-      yChecked = If[
-        y === Null || ! IntervalMemberQ[Interval[minMaxCV2], y],
-        Print["Invalid y coordinate."];
-        Mean[minMaxCV2],
-        y];
-      ];
+    data = dataName[getData];
+    {minMaxCV1, minMaxCV2} = dataName[getMinMax];
+    (* Check x and y values. Use Mean if invalid *)
+    xChecked = If[
+      x === Null || ! IntervalMemberQ[Interval[minMaxCV1], x],
+      Print["Invalid x coordinate."];
+      Mean[minMaxCV1],
+      x];
+    yChecked = If[
+      y === Null || ! IntervalMemberQ[Interval[minMaxCV2], y],
+      Print["Invalid y coordinate."];
+      Mean[minMaxCV2],
+      y];
     (* Use Nearest to find best estimate of requested location on the grid. *)
-    location = Nearest[data[[1]][[All, 1;;2]] -> Automatic, {x, y}, 1];
+    (* Arguments are 1: the data (just taking the first time point),
+    2: -> Automatic maps the data onto the integers so that it gives the
+    position of the nearest, not the value, so I don't have to search again
+    afterwards. 3: the requested (input) coordinates.
+    If two are equally close, not quite sure what it will do. *)
+    nearestFunction = Nearest[data[[1]][[All, 1;;2]] -> Automatic];
+    nearestFunctionxy = Nearest[data[[1]][[All, 1;;2]]];
+    location =  nearestFunction[{x, y}];
     locationxy = data[[1]][[location, 1;;2]][[1]];
-    Print["Taking data at point ", locationxy];
-    (* From All times, take determined location, then just take the height there. *)
-    plotData = Flatten[data[[All, location, 3]]];
-    plot = ListLinePlot[plotData,
-      FilterRules[{tempopts}, Options[ListLinePlot]]];
-    plot
+    If[OptionValue[dynamic],
+    (*Print[Dimensions[data]];*)
+    (*Print[Dimensions[data[[-1]]]];*)
+      lastTimePoint = data[[-1]];
+      DynamicModule[{
+        spotxy = locationxy
+      },
+        Print[Dynamic[spotxy]];
+        Print[Dynamic[ListLinePlot[Flatten[
+          data[[All,
+              Dynamic[nearestFunction[spotxy]][[1]],
+              3
+              ]]],
+          FilterRules[{tempopts}, Options[ListLinePlot]]]
+        ]];
+        Print[Show[
+          ListDensityPlot[lastTimePoint,
+            FilterRules[{tempopts}, Options[ListDensityPlot]]],
+          Graphics[Locator[Dynamic[spotxy]]
+          ]]]
+      ];,
+      Print["Taking data at point ", locationxy];
+      (* From All times, take determined location, then just take the height there. *)
+      plotData = Flatten[data[[All, location, 3]]];
+      plot = ListLinePlot[plotData,
+        FilterRules[{tempopts}, Options[ListLinePlot]]];
+      Return[plot]
+    ];
   ]
 
 (* End Private Context *)
