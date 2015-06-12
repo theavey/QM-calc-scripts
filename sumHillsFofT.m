@@ -25,7 +25,7 @@ sumHills::usage = "sumHills[HILLS_file, options] returns a list of 2D arrays tha
 plotHills::usage = "plotHills[list of matrices, options] Takes output of sumHills
   and plots time steps."
 
-plotHillsPoint::usage = "plotHllsPoint[list of matrices, {x, y}, options] takes output of
+plotHillsPoint::usage = "plotHillsPoint[list of matrices, {x, y}, options] takes output of
   sumHills and plots the selected point as a function of time."
 
 (* Begin Private Context *)
@@ -58,20 +58,16 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
     variableName = If[
       OptionValue[name] === Automatic,
       (* Take data file name and keep only alphanumerics. *)
-      ToExpression[StringDelete[hillsFileName, Except[WordCharacter]]],
+      ToExpression[StringReplace[hillsFileName, Except[WordCharacter] -> ""]],
       (* Use given name. *)
       OptionValue[name]];
     Print["Data will be output as ", ToString[variableName]];
-    (* Import data, first two lines are comments *)
-    rawdata = Import[hillsFileName, "Table"][[3;;]];
-    (* Check for empty element at end from \n presumably*)
-    rawdata = If[rawdata[[-1]] == {},
-      rawdata[[1;;-2]],
-      rawdata];
+    (* Import data, checking for comments and empty elements*)
+    rawdata = DeleteCases[#, {_String, __} | {}]& @ Import[hillsFileName, "Table"];
     sigmaCV1 = rawdata[[1,4]];
     sigmaCV2 = rawdata[[1,5]];
-    minMaxCV1 = MinMax[rawdata[[All, 2]]];
-    minMaxCV2 = MinMax[rawdata[[All, 3]]];
+    minMaxCV1={Min[rawdata[[All, 2]]], Max[rawdata[[All, 2]]]};
+    minMaxCV2={Min[rawdata[[All, 3]]], Max[rawdata[[All, 3]]]};
     gridSize = OptionValue[GridSize];
     (* Find size (dimensions) of grid needed. *)
     gridLengthCV1 = Ceiling[(minMaxCV1[[2]] - minMaxCV1[[1]]) / gridSize];
@@ -83,7 +79,6 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
     gaussianMatrix = GaussianMatrix[
       {{gridLengthCV1, gridLengthCV2},
         {sigmaCV1 / gridSize, sigmaCV2 / gridSize}},
-      Standardized -> False,
       Method -> "Gaussian"]
         * 2 Pi (sigmaCV1 * sigmaCV2) / gridSize^2;
     (* Function that will first find the offset of the current point
@@ -140,9 +135,9 @@ Options[plotHills] =
       manipulate -> True,
       timePoint -> Automatic,
       PlotRange -> All,
-      Sequence @@
+      ## & @@
         Options[ListPlot3D],
-      Sequence @@
+      ## & @@
         Options[Manipulate]
     };
 
@@ -185,8 +180,8 @@ Options[plotHillsPoint] =
     {
       dynamic -> False,
       PlotRange -> All,
-      ##&@@ Options[ListLinePlot],
-      ##&@@ Options[ListDensityPlot]
+      ## & @@ Options[ListLinePlot],
+      ## & @@ Options[ListDensityPlot]
     };
 
 plotHillsPoint[dataName_, {x_:Null, y_:Null}, opts:OptionsPattern[]]:=
