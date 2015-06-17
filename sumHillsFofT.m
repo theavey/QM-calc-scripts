@@ -34,10 +34,10 @@ Begin["`Private`"]
 Options[sumHills] =
     {
       GridSize -> 0.1,
+      TimeChunkSize -> 1000, (* 1000 is chunking to tenths of nanoseconds *)
       name -> Automatic
     };
 
-(* todo change Module to Block and check functionality! *)
 sumHills[hillsFileName_, OptionsPattern[]]:=
   Module[
     {
@@ -47,11 +47,10 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
       gridLengthCV1, gridLengthCV2,
       gridCV1, gridCV2,
       gridSize,
+      timeChunk,
       gaussianMatrix,
       scaledRotatedGaussMat,
-      timedGaussians,
-      accumulatedGaussians,
-      withCoords,
+      processedData,
       variableName
     },
     (* Assign name for output of data *)
@@ -64,17 +63,23 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
     Print["Data will be output as ", ToString[variableName]];
     (* Import data, checking for comments and empty elements*)
     rawdata = DeleteCases[#, {_String, __} | {}]& @ Import[hillsFileName, "Table"];
+    Print["Data imported successfully"];
     sigmaCV1 = rawdata[[1,4]];
     sigmaCV2 = rawdata[[1,5]];
     minMaxCV1={Min[rawdata[[All, 2]]], Max[rawdata[[All, 2]]]};
     minMaxCV2={Min[rawdata[[All, 3]]], Max[rawdata[[All, 3]]]};
     gridSize = OptionValue[GridSize];
+    timeChunk = OptionValue[TimeChunkSize];
     (* Find size (dimensions) of grid needed. *)
     gridLengthCV1 = Ceiling[(minMaxCV1[[2]] - minMaxCV1[[1]]) / gridSize];
     gridLengthCV2 = Ceiling[(minMaxCV2[[2]] - minMaxCV2[[1]]) / gridSize];
     (* Values along grid axes *)
     gridCV1 = Table[i, Evaluate[{i, ## & @@ minMaxCV1, gridSize}]];
     gridCV2 = Table[i, Evaluate[{i, ## & @@ minMaxCV2, gridSize}]];
+    Print["Found grid parameters:"];
+    Print["  Collective variable 1 range: ", minMaxCV1];
+    Print["  Collective variable 2 range: ", minMaxCV2];
+    Print["  Grid dimensions: ", gridLengthCV1, ", ", gridLengthCV2];
     (* Create gaussian matrix that will be translated as needed later. *)
     gaussianMatrix = GaussianMatrix[
       {{gridLengthCV1, gridLengthCV2},
@@ -94,25 +99,38 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
         ]][[1 ;; gridLengthCV1, 1 ;; gridLengthCV2]]
       ];
     (* Apply the function, in parallel to save some time hopefully.*)
-    timedGaussians = ParallelMap[scaledRotatedGaussMat, rawdata];
+    processedData =
+        Function[timePoint,
+          Flatten[ParallelArray[
+            {gridCV1[[#1]], gridCV2[[#2]], timePoint[[#1, #2]]} &,
+            {gridLengthCV1, gridLengthCV2},
+            DistributedContexts -> Automatic],
+            1]] /@
+              Accumulate[
+                ParallelMap[
+                  Total[scaledRotatedGaussMat[#] & /@ #] &,
+                  (* Partition into chunks of size timeChunk,
+                   non-overlapping, no overhang, no padding *)
+                  Partition[rawdata, timeChunk, timeChunk, {1, 1}, {}]]];
+    Print["Done processing data"]
     (* Sum the consecutive Gaussians. This may be the slowest step,
     but I don't know how it can be done in parallel.
     It could be chunked into time steps which are then summed
     in parallel, but the accumulation still seems like it would
     need to be done in serial.*)
-    accumulatedGaussians = Accumulate[timedGaussians];
+    (*accumulatedGaussians = Accumulate[timedGaussians];*)
     (*Print[Dimensions[accumulatedGaussians]];*)
     (* Add coordinates to the accumulated data *)
-    withCoords = Map[
-      Function[timePoint,
-        Flatten[ParallelArray[
-          {gridCV1[[#1]], gridCV2[[#2]], timePoint[[#1, #2]]} &,
-          {gridLengthCV1, gridLengthCV2},
-          DistributedContexts -> Automatic],
-          1]],
-      accumulatedGaussians];
+    (*withCoords = Map[*)
+      (*Function[timePoint,*)
+        (*Flatten[ParallelArray[*)
+          (*{gridCV1[[#1]], gridCV2[[#2]], timePoint[[#1, #2]]} &,*)
+          (*{gridLengthCV1, gridLengthCV2},*)
+          (*DistributedContexts -> Automatic],*)
+          (*1]],*)
+      (*accumulatedGaussians];*)
     (* Set downvalues of output *)
-    Evaluate[variableName][getData] = withCoords;
+    Evaluate[variableName][getData] = processedData;
     Evaluate[variableName][getMinMax] = {minMaxCV1, minMaxCV2};
     Evaluate[variableName][getGridSize] = gridSize;
     Evaluate[variableName][getGrid] = {gridCV1, gridCV2};
