@@ -98,6 +98,7 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
           gridLengthCV2 - (row[[3]] - minMaxCV2[[1]])/gridSize}
         ]][[1 ;; gridLengthCV1, 1 ;; gridLengthCV2]]
       ];
+    Print["Processing data..."]
     (* Apply the function, in parallel to save some time hopefully.*)
     processedData =
         Function[timePoint,
