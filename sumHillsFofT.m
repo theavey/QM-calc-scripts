@@ -47,7 +47,7 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
       gridLengthCV1, gridLengthCV2,
       gridCV1, gridCV2,
       gridSize,
-      timeChunk,
+      timeChunk, timeChunkwUnits,
       gaussianMatrix,
       scaledRotatedGaussMat,
       processedData,
@@ -70,6 +70,8 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
     minMaxCV2={Min[rawdata[[All, 3]]], Max[rawdata[[All, 3]]]};
     gridSize = OptionValue[GridSize];
     timeChunk = OptionValue[TimeChunkSize];
+    timeChunkwUnits = Round[timeChunk * rawdata[[1, 1]]];
+    DistributeDefinitions[timeChunkwUnits];
     (* Find size (dimensions) of grid needed. *)
     gridLengthCV1 = Ceiling[(minMaxCV1[[2]] - minMaxCV1[[1]]) / gridSize];
     gridLengthCV2 = Ceiling[(minMaxCV2[[2]] - minMaxCV2[[1]]) / gridSize];
@@ -80,6 +82,7 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
     Print["  Collective variable 1 range: ", minMaxCV1];
     Print["  Collective variable 2 range: ", minMaxCV2];
     Print["  Grid dimensions: ", gridLengthCV1, ", ", gridLengthCV2];
+    Print["  Size of time chunks: ", timeChunkwUnits];
     (* Create gaussian matrix that will be translated as needed later. *)
     gaussianMatrix = GaussianMatrix[
       {{gridLengthCV1, gridLengthCV2},
@@ -98,7 +101,7 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
           gridLengthCV2 - (row[[3]] - minMaxCV2[[1]])/gridSize}
         ]][[1 ;; gridLengthCV1, 1 ;; gridLengthCV2]]
       ];
-    Print["Processing data..."]
+    Print["Processing data..."];
     (* Apply the function, in parallel to save some time hopefully.*)
     processedData =
         Function[timePoint,
@@ -109,11 +112,18 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
             1]] /@
               Accumulate[
                 ParallelMap[
-                  Total[scaledRotatedGaussMat[#] & /@ #] &,
+                  Total[
+                    (
+                      If[
+                        Mod[Round[#[[1]],0.1], 10 * timeChunkwUnits] == 0,
+                        Print["Time step: ", #[[1]]],
+                        ""];
+                      scaledRotatedGaussMat[#]
+                    ) & /@ #] &,
                   (* Partition into chunks of size timeChunk,
                    non-overlapping, no overhang, no padding *)
                   Partition[rawdata, timeChunk, timeChunk, {1, 1}, {}]]];
-    Print["Done processing data"]
+    Print["Done processing data"];
     (* Sum the consecutive Gaussians. This may be the slowest step,
     but I don't know how it can be done in parallel.
     It could be chunked into time steps which are then summed
