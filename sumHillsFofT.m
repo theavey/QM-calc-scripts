@@ -112,14 +112,14 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
             1]] /@
               Accumulate[
                 ParallelMap[
-                  Total[
+                  Chop[Total[
                     (
                       If[
                         Mod[Round[#[[1]],0.1], 10 * timeChunkwUnits] == 0,
                         Print["Time step: ", #[[1]]],
                         ""];
                       scaledRotatedGaussMat[#]
-                    ) & /@ #] &,
+                    ) & /@ #]] &,
                   (* Partition into chunks of size timeChunk,
                    non-overlapping, no overhang, no padding *)
                   Partition[rawdata, timeChunk, timeChunk, {1, 1}, {}]]];
@@ -209,6 +209,8 @@ Options[plotHillsPoint] =
     {
       dynamic -> False,
       PlotRange -> All,
+      Frame -> True,
+      LabelStyle -> Black,
       ## & @@ Options[ListLinePlot],
       ## & @@ Options[ListDensityPlot]
     };
@@ -247,7 +249,7 @@ plotHillsPoint[dataName_, {x_:Null, y_:Null}, opts:OptionsPattern[]]:=
     If two are equally close, not quite sure what it will do. *)
     nearestFunction = Nearest[data[[1]][[All, 1;;2]] -> Automatic];
     nearestFunctionxy = Nearest[data[[1]][[All, 1;;2]]];
-    location =  nearestFunction[{x, y}];
+    location =  nearestFunction[{xChecked, yChecked}];
     locationxy = data[[1]][[location, 1;;2]][[1]];
     If[OptionValue[dynamic],
     (*Print[Dimensions[data]];*)
@@ -262,13 +264,15 @@ plotHillsPoint[dataName_, {x_:Null, y_:Null}, opts:OptionsPattern[]]:=
               Dynamic[nearestFunction[spotxy]][[1]],
               3
               ]]],
+          FrameLabel -> {"Time Chunk", "- (Free Energy)"},
           FilterRules[{tempopts}, Options[ListLinePlot]]]
         ]];
         Print[Show[
           ListDensityPlot[lastTimePoint,
             FilterRules[{tempopts}, Options[ListDensityPlot]]],
           Graphics[Locator[Dynamic[spotxy]]
-          ]]]
+          ]]],
+        UnsavedVariables -> {spotxy}
       ];,
       Print["Taking data at point ", locationxy];
       (* From All times, take determined location, then just take the height there. *)
