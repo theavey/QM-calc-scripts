@@ -4,7 +4,7 @@
 (* :Title: sumHillsFofT     *)
 (* :Context: sumHillsFofT`  *)
 (* :Author: Thomas Heavey   *)
-(* :Date: 6/8/15              *)
+(* :Date: 6/22/15           *)
 
 (* :Package Version: 0.1       *)
 (* :Mathematica Version: 9     *)
@@ -62,6 +62,7 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
       OptionValue[name]];
     Print["Data will be output as ", ToString[variableName]];
     (* Import data, checking for comments and empty elements*)
+    Print["Importing data from ", hillsFileName];
     rawdata = DeleteCases[#, {_String, __} | {}]& @ Import[hillsFileName, "Table"];
     Print["Data imported successfully"];
     sigmaCV1 = rawdata[[1,4]];
@@ -160,6 +161,7 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
         plotHillsPoint[Evaluate[variableName], {a, b}, opts];
     Evaluate[variableName] /: Plot[Evaluate[variableName], {a_, b_}] :=
         plotHillsPoint[Evaluate[variableName], {a, b}];
+    variableName
   ]
 
 Options[plotHills] =
