@@ -3,12 +3,12 @@
 
 (* :Title: sumHillsFofT     *)
 (* :Context: sumHillsFofT`  *)
-(* :Author: Tommy            *)
+(* :Author: Thomas Heavey   *)
 (* :Date: 6/8/15              *)
 
-(* :Package Version: 1.0       *)
-(* :Mathematica Version:       *)
-(* :Copyright: (c) 2015 Tommy *)
+(* :Package Version: 0.1       *)
+(* :Mathematica Version: 9     *)
+(* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
 (* :Discussion:                *)
 
@@ -45,7 +45,7 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
       sigmaCV1, sigmaCV2,
       minMaxCV1, minMaxCV2,
       gridLengthCV1, gridLengthCV2,
-      gridCV1, gridCV2,
+      gridCV1, gridCV2, grid2D,
       gridSize,
       timeChunk, timeChunkwUnits,
       gaussianMatrix,
@@ -101,21 +101,22 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
           gridLengthCV2 - (row[[3]] - minMaxCV2[[1]])/gridSize}
         ]][[1 ;; gridLengthCV1, 1 ;; gridLengthCV2]]
       ];
+    grid2D = Array[
+      {gridCV1[[#1]], gridCV2[[#2]]} &,
+      {gridLengthCV1, gridLengthCV2}];
     Print["Processing data..."];
-    (* Apply the function, in parallel to save some time hopefully.*)
+    (* Apply the function, in parallel to save some time hopefully. *)
     processedData =
         Function[timePoint,
-          Flatten[ParallelArray[
-            {gridCV1[[#1]], gridCV2[[#2]], timePoint[[#1, #2]]} &,
-            {gridLengthCV1, gridLengthCV2},
-            DistributedContexts -> Automatic],
-            1]] /@
+          (* Join height with coordinates, then flatten the array. *)
+          Flatten[Join[grid2D,
+            Partition[#, 1] & /@ timePoint, 3], 1]] /@
               Accumulate[
                 ParallelMap[
                   Chop[Total[
                     (
                       If[
-                        Mod[Round[#[[1]],0.1], 10 * timeChunkwUnits] == 0,
+                        Mod[Round[#[[1]], 0.1], 10 * timeChunkwUnits] == 0,
                         Print["Time step: ", #[[1]]],
                         ""];
                       scaledRotatedGaussMat[#]
@@ -145,6 +146,8 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
     Evaluate[variableName][getMinMax] = {minMaxCV1, minMaxCV2};
     Evaluate[variableName][getGridSize] = gridSize;
     Evaluate[variableName][getGrid] = {gridCV1, gridCV2};
+      (* Times of time chunks (only rows beginning through end by every timeChunk) *)
+    Evaluate[variableName][getTimes] = rawdata[[;; ;; timeChunk, 1]];
     (* Set upvalues of output *)
     Evaluate[variableName] /: Plot[Evaluate[variableName],
       opts:OptionsPattern[plotHills]] :=
@@ -196,7 +199,8 @@ plotHills[dataName_, opts:OptionsPattern[plotHills]]:=
       plot = Manipulate[
           ListPlot3D[data[[i]],
             FilterRules[{tempopts}, Options[ListPlot3D]]],
-          {{i, timeLength, "Time Point"}, 1, timeLength, 1}
+          {{i, timeLength, "Time Chunk"}, 1, timeLength, 1,
+            Appearance->"Labeled"}
           (*FilterRules[{tempopts}, Options[Manipulate]]*)
       ],
       plot = ListPlot3D[data[[timepoint]],
@@ -211,6 +215,7 @@ Options[plotHillsPoint] =
       PlotRange -> All,
       Frame -> True,
       LabelStyle -> Black,
+      ImageSize -> Medium,
       ## & @@ Options[ListLinePlot],
       ## & @@ Options[ListDensityPlot]
     };
@@ -218,7 +223,7 @@ Options[plotHillsPoint] =
 plotHillsPoint[dataName_, {x_:Null, y_:Null}, opts:OptionsPattern[]]:=
   Module[
     {
-      data, lastTimePoint,
+      data, lastTimePoint, times,
       tempopts,
       minMaxCV1, minMaxCV2,
       xChecked, yChecked,
@@ -230,6 +235,7 @@ plotHillsPoint[dataName_, {x_:Null, y_:Null}, opts:OptionsPattern[]]:=
     tempopts = {opts} ~Join~ Options[plotHillsPoint];
     data = dataName[getData];
     {minMaxCV1, minMaxCV2} = dataName[getMinMax];
+    times = dataName[getTimes];
     (* Check x and y values. Use Mean if invalid *)
     xChecked = If[
       x === Null || ! IntervalMemberQ[Interval[minMaxCV1], x],
@@ -255,32 +261,39 @@ plotHillsPoint[dataName_, {x_:Null, y_:Null}, opts:OptionsPattern[]]:=
     (*Print[Dimensions[data]];*)
     (*Print[Dimensions[data[[-1]]]];*)
       lastTimePoint = data[[-1]];
-      DynamicModule[{
-        spotxy = locationxy
-      },
-        Print[Dynamic[spotxy]];
-        Print[Dynamic[ListLinePlot[Flatten[
-          data[[All,
-              Dynamic[nearestFunction[spotxy]][[1]],
-              3
-              ]]],
-          FrameLabel -> {"Time Chunk", "- (Free Energy)"},
-          FilterRules[{tempopts}, Options[ListLinePlot]]]
-        ]];
-        Print[Show[
-          ListDensityPlot[lastTimePoint,
-            FilterRules[{tempopts}, Options[ListDensityPlot]]],
-          Graphics[Locator[Dynamic[spotxy]]
-          ]]],
+      DynamicModule[
+        {
+          spotxy = locationxy
+        },
+        Column[{
+          Dynamic[spotxy],
+          Dynamic[ListLinePlot[
+            Transpose[{times,
+              Flatten[
+                data[[All,
+                    nearestFunction[spotxy][[1]],
+                    3
+                    ]]]}],
+            FrameLabel -> {"Time / ps", "- (Free Energy)"},
+            FilterRules[{tempopts}, Options[ListLinePlot]]]],
+          Show[
+            ListDensityPlot[lastTimePoint,
+              FilterRules[{tempopts}, Options[ListDensityPlot]]],
+            Graphics[Locator[Dynamic[spotxy]]
+            ]]}],
         UnsavedVariables -> {spotxy}
-      ];,
+      ],
       Print["Taking data at point ", locationxy];
       (* From All times, take determined location, then just take the height there. *)
-      plotData = Flatten[data[[All, location, 3]]];
+      plotData = Transpose[{times, Flatten[data[[All, location, 3]]]}];
       plot = ListLinePlot[plotData,
+        FrameLabel -> {"Time", "- (Free Energy)"},
         FilterRules[{tempopts}, Options[ListLinePlot]]];
       Return[plot]
-    ];
+    ]
+    (* If I add anything here, need to change above because this is set up to return
+    the value of the the "If" statement, so adding a semicolon will cause a dynamic
+    plot not to be returned. *)
   ]
 
 (* End Private Context *)
