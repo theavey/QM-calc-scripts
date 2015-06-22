@@ -1,5 +1,11 @@
 #!/usr/local/bin/MathematicaScript -script
 
+(* This function needs to be executable. It can be called with 0, 1, or 2 arguments.
+If provided, the first argument is the name of the HILLS file which is HILLS by default.
+If provided, the second argument is the name of the variable of the output data.
+Again, HILLS by default.
+It will save everything as mathematicaHILLS.m in the current directory. *)
+
 If[Length[$ScriptCommandLine] > 1,
   If[Length[$ScriptCommandLine] > 2,
     If[Length[$ScriptCommandLine] > 3,
