@@ -4,9 +4,9 @@
 (* :Title: sumHillsFofT     *)
 (* :Context: sumHillsFofT`  *)
 (* :Author: Thomas Heavey   *)
-(* :Date: 6/22/15           *)
+(* :Date: 6/25/15           *)
 
-(* :Package Version: 0.1       *)
+(* :Package Version: 0.2       *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
@@ -20,7 +20,6 @@ sumHills::usage = "sumHills[HILLS_file, options] returns a list of 2D arrays tha
   surface from a PLUMED metadynamics calculation.
   Only made for 2 collective variables currently, but that can't be changed by
   making it check for the length of a row in the input data."
-(* todo if we ever do well tempered metadynamics, might need to include bias factor? *)
 
 plotHills::usage = "plotHills[list of matrices, options] Takes output of sumHills
   and plots time steps."
@@ -31,6 +30,32 @@ plotHillsPoint::usage = "plotHillsPoint[list of matrices, {x, y}, options] takes
 (* Begin Private Context *)
 Begin["`Private`"]
 
+processData =
+    Compile[{{data, _Real, 2}, {grid2D, _Real, 3}, {gaussianMatrix, _Real, 2},
+      {gridLengthCV1, _Integer}, {gridLengthCV2, _Integer},
+      {minMaxCV1, _Real, 1}, {minMaxCV2, _Real, 1}, {gridSize, _Real},
+      {timeChunk, _Integer}, {filler, _Real, 1}},
+    (* Join height with coordinates, then flatten the array. *)
+      Flatten[Join[grid2D,
+        Partition[#, 1] & /@ #, 3], 1] & /@
+          Accumulate[
+            Map[
+              Total[
+                RotateLeft[
+                  gaussianMatrix * #[[6]],
+                  Round[
+                    {gridLengthCV1 - (#[[2]] - minMaxCV1[[1]])/gridSize,
+                      gridLengthCV2 - (#[[3]] - minMaxCV2[[1]])/gridSize}
+                  ]][[1 ;; gridLengthCV1, 1 ;; gridLengthCV2]] & /@ #] &,
+            (* Partition into chunks of size timeChunk,
+                   non-overlapping, no overhang,
+                   padded with a row of 0. if needed *)
+              Partition[data, timeChunk, timeChunk, {1, 1}, {filler}]]],
+      {{Partition[_, _, __], _Real, 3},
+        {Partition[_, 1], _Real, 3}},
+      CompilationTarget -> "C"
+    ];
+
 Options[sumHills] =
     {
       GridSize -> 0.1,
@@ -39,109 +64,71 @@ Options[sumHills] =
     };
 
 sumHills[hillsFileName_, OptionsPattern[]]:=
-  Module[
-    {
-      rawdata,
-      sigmaCV1, sigmaCV2,
-      minMaxCV1, minMaxCV2,
-      gridLengthCV1, gridLengthCV2,
-      gridCV1, gridCV2, grid2D,
-      gridSize,
-      timeChunk, timeChunkwUnits,
-      gaussianMatrix,
-      scaledRotatedGaussMat,
-      processedData,
-      variableName
-    },
+    Module[
+      {
+        rawdata,
+        sigmaCV1, sigmaCV2,
+        minMaxCV1, minMaxCV2,
+        gridLengthCV1, gridLengthCV2,
+        gridCV1, gridCV2, grid2D,
+        gridSize,
+        timeChunk, timeChunkwUnits,
+        gaussianMatrix,
+        scaledRotatedGaussMat,
+        filler,
+        processedData,
+        variableName
+      },
     (* Assign name for output of data *)
-    variableName = If[
-      OptionValue[name] === Automatic,
+      variableName = If[
+        OptionValue[name] === Automatic,
       (* Take data file name and keep only alphanumerics. *)
-      ToExpression[StringReplace[hillsFileName, Except[WordCharacter] -> ""]],
+        ToExpression[StringReplace[hillsFileName, Except[WordCharacter] -> ""]],
       (* Use given name. *)
-      OptionValue[name]];
-    Print["Data will be output as ", ToString[variableName]];
-    (* Import data, checking for comments and empty elements*)
-    Print["Importing data from ", hillsFileName];
-    rawdata = DeleteCases[#, {_String, __} | {}]& @ Import[hillsFileName, "Table"];
-    Print["Data imported successfully"];
-    sigmaCV1 = rawdata[[1,4]];
-    sigmaCV2 = rawdata[[1,5]];
-    minMaxCV1={Min[rawdata[[All, 2]]], Max[rawdata[[All, 2]]]};
-    minMaxCV2={Min[rawdata[[All, 3]]], Max[rawdata[[All, 3]]]};
-    gridSize = OptionValue[GridSize];
-    timeChunk = OptionValue[TimeChunkSize];
-    timeChunkwUnits = Round[timeChunk * rawdata[[1, 1]]];
-    DistributeDefinitions[timeChunkwUnits];
-    (* Find size (dimensions) of grid needed. *)
-    gridLengthCV1 = Ceiling[(minMaxCV1[[2]] - minMaxCV1[[1]]) / gridSize];
-    gridLengthCV2 = Ceiling[(minMaxCV2[[2]] - minMaxCV2[[1]]) / gridSize];
-    (* Values along grid axes *)
-    gridCV1 = Table[i, Evaluate[{i, ## & @@ minMaxCV1, gridSize}]];
-    gridCV2 = Table[i, Evaluate[{i, ## & @@ minMaxCV2, gridSize}]];
-    Print["Found grid parameters:"];
-    Print["  Collective variable 1 range: ", minMaxCV1];
-    Print["  Collective variable 2 range: ", minMaxCV2];
-    Print["  Grid dimensions: ", gridLengthCV1, ", ", gridLengthCV2];
-    Print["  Size of time chunks: ", timeChunkwUnits];
-    (* Create gaussian matrix that will be translated as needed later. *)
-    gaussianMatrix = GaussianMatrix[
-      {{gridLengthCV1, gridLengthCV2},
-        {sigmaCV1 / gridSize, sigmaCV2 / gridSize}},
-      Method -> "Gaussian"]
-        * 2 Pi (sigmaCV1 * sigmaCV2) / gridSize^2;
-    (* Function that will first find the offset of the current point
+        OptionValue[name]];
+      Print["Data will be output as ", ToString[variableName]];
+      (* Import data, checking for comments and empty elements*)
+      Print["Importing data from ", hillsFileName];
+      rawdata = DeleteCases[#, {_String, __} | {}]& @ Import[hillsFileName, "Table"];
+      Print["Data imported successfully"];
+      sigmaCV1 = rawdata[[1,4]];
+      sigmaCV2 = rawdata[[1,5]];
+      minMaxCV1={Min[rawdata[[All, 2]]], Max[rawdata[[All, 2]]]};
+      minMaxCV2={Min[rawdata[[All, 3]]], Max[rawdata[[All, 3]]]};
+      gridSize = OptionValue[GridSize];
+      timeChunk = OptionValue[TimeChunkSize];
+      timeChunkwUnits = Round[timeChunk * rawdata[[1, 1]]];
+      DistributeDefinitions[timeChunkwUnits];
+      (* Find size (dimensions) of grid needed. *)
+      gridLengthCV1 = Ceiling[(minMaxCV1[[2]] - minMaxCV1[[1]]) / gridSize];
+      gridLengthCV2 = Ceiling[(minMaxCV2[[2]] - minMaxCV2[[1]]) / gridSize];
+      (* Values along grid axes *)
+      gridCV1 = Table[i, Evaluate[{i, ## & @@ minMaxCV1, gridSize}]];
+      gridCV2 = Table[i, Evaluate[{i, ## & @@ minMaxCV2, gridSize}]];
+      Print["Found grid parameters:"];
+      Print["  Collective variable 1 range: ", minMaxCV1];
+      Print["  Collective variable 2 range: ", minMaxCV2];
+      Print["  Grid dimensions: ", gridLengthCV1, ", ", gridLengthCV2];
+      Print["  Size of time chunks: ", timeChunkwUnits];
+      (* Create gaussian matrix that will be translated as needed later. *)
+      gaussianMatrix = Chop[GaussianMatrix[
+        {{gridLengthCV1, gridLengthCV2},
+          {sigmaCV1 / gridSize, sigmaCV2 / gridSize}},
+        Method -> "Gaussian"]
+          * 2 Pi (sigmaCV1 * sigmaCV2) / gridSize^2,
+        10^-100];
+      (* Function that will first find the offset of the current point
     to the center of gaussian matrix scaled to the grid.
     Then, it will rotate the center to that point using RotateLeft.
     Finally, it will crop the matrix to the size of the grid.*)
-    scaledRotatedGaussMat[row_] := Return[
-      RotateLeft[
-        gaussianMatrix * row[[6]],
-        Round[
-          {gridLengthCV1 - (row[[2]] - minMaxCV1[[1]])/gridSize,
-          gridLengthCV2 - (row[[3]] - minMaxCV2[[1]])/gridSize}
-        ]][[1 ;; gridLengthCV1, 1 ;; gridLengthCV2]]
-      ];
-    grid2D = Array[
-      {gridCV1[[#1]], gridCV2[[#2]]} &,
-      {gridLengthCV1, gridLengthCV2}];
-    Print["Processing data..."];
-    (* Apply the function, in parallel to save some time hopefully. *)
-    processedData =
-        Function[timePoint,
-          (* Join height with coordinates, then flatten the array. *)
-          Flatten[Join[grid2D,
-            Partition[#, 1] & /@ timePoint, 3], 1]] /@
-              Accumulate[
-                ParallelMap[
-                  Chop[Total[
-                    (
-                      If[
-                        Mod[Round[#[[1]], 0.1], 10 * timeChunkwUnits] == 0,
-                        Print["Time step: ", #[[1]]],
-                        ""];
-                      scaledRotatedGaussMat[#]
-                    ) & /@ #]] &,
-                  (* Partition into chunks of size timeChunk,
-                   non-overlapping, no overhang, no padding *)
-                  Partition[rawdata, timeChunk, timeChunk, {1, 1}, {}]]];
-    Print["Done processing data"];
-    (* Sum the consecutive Gaussians. This may be the slowest step,
-    but I don't know how it can be done in parallel.
-    It could be chunked into time steps which are then summed
-    in parallel, but the accumulation still seems like it would
-    need to be done in serial.*)
-    (*accumulatedGaussians = Accumulate[timedGaussians];*)
-    (*Print[Dimensions[accumulatedGaussians]];*)
-    (* Add coordinates to the accumulated data *)
-    (*withCoords = Map[*)
-      (*Function[timePoint,*)
-        (*Flatten[ParallelArray[*)
-          (*{gridCV1[[#1]], gridCV2[[#2]], timePoint[[#1, #2]]} &,*)
-          (*{gridLengthCV1, gridLengthCV2},*)
-          (*DistributedContexts -> Automatic],*)
-          (*1]],*)
-      (*accumulatedGaussians];*)
+      grid2D = Array[
+        {gridCV1[[#1]], gridCV2[[#2]]} &,
+        {gridLengthCV1, gridLengthCV2}];
+      filler = {0., 0., 0., 0., 0., 0., 0.};
+      Print["Processing data..."];
+      processedData = processData[rawdata, grid2D, gaussianMatrix, gridLengthCV1, gridLengthCV2,
+        minMaxCV1, minMaxCV2, gridSize, timeChunk, filler];
+      Print["Done processing data"];
     (* Set downvalues of output *)
     Evaluate[variableName][getData] = processedData;
     Evaluate[variableName][getMinMax] = {minMaxCV1, minMaxCV2};
