@@ -4,9 +4,9 @@
 (* :Title: sumHillsFofT     *)
 (* :Context: sumHillsFofT`  *)
 (* :Author: Thomas Heavey   *)
-(* :Date: 6/25/15           *)
+(* :Date: 6/29/15           *)
 
-(* :Package Version: 0.2       *)
+(* :Package Version: 0.2.1     *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
@@ -26,6 +26,13 @@ plotHills::usage = "plotHills[list of matrices, options] Takes output of sumHill
 
 plotHillsPoint::usage = "plotHillsPoint[list of matrices, {x, y}, options] takes output of
   sumHills and plots the selected point as a function of time."
+
+importColvar::usage = "importColvar[file name] imports a COLVAR file and returns the data"
+
+plotColvar::usage = "plotColvar[colvar data] plots a COLVAR data set with Manipulate"
+
+plot2Colvar::usage = "plot2Colvar[colvar data 1, colvar data 2] plots 2 COLVAR data
+  sets side by side with Manipulate"
 
 (* Begin Private Context *)
 Begin["`Private`"]
@@ -284,6 +291,45 @@ plotHillsPoint[dataName_, {x_:Null, y_:Null}, opts:OptionsPattern[]]:=
     the value of the the "If" statement, so adding a semicolon will cause a dynamic
     plot not to be returned. *)
   ]
+
+
+importColvar[fileName_String] := Module[{},
+  (DeleteCases[#, {_String, __} | {}] &@
+      Import[fileName, "Table"])[[All, 2 ;; 3]]]
+
+plot2Colvar[data1_, data2_] := Module[{},
+  Manipulate[
+    GraphicsRow[{
+      ListPlot[data1[[i ;; i + number]],
+        AspectRatio -> 1,
+        PlotRange -> {{0, 10}, {0, 10}},
+        ImageSize -> Medium,
+        PlotLabel -> "first data set"],
+      ListPlot[data2[[i ;; i + number]],
+        AspectRatio -> 1,
+        PlotRange -> {{0, 10}, {0, 10}},
+        ImageSize -> Medium,
+        PlotLabel -> "second data set"]
+    }],
+    {{i, 1, "Position of Points"},
+      1, Length[data1] - number, 10000,
+      Appearance -> "Labeled"},
+    {{number, 50000, "Number of Points to Plot"},
+      1000, 100000, 1000,
+      Appearance -> "Labeled"}]]
+
+plotColvar[data_] := Module[{},
+  Manipulate[
+    ListPlot[data[[i ;; i + number]],
+      AspectRatio -> 1,
+      PlotRange -> {{0, 10}, {0, 10}},
+      ImageSize -> Medium],
+    {{i, 1, "Position of Points"},
+      1, Length[data] - number, 10000,
+      Appearance -> "Labeled"},
+    {{number, 50000, "Number of Points to Plot"},
+      1000, 100000, 1000,
+      Appearance -> "Labeled"}]]
 
 (* End Private Context *)
 End[]
