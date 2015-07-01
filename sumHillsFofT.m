@@ -6,7 +6,7 @@
 (* :Author: Thomas Heavey   *)
 (* :Date: 7/01/15           *)
 
-(* :Package Version: 0.2.2     *)
+(* :Package Version: 0.2.3     *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
@@ -26,6 +26,9 @@ plotHills::usage = "plotHills[list of matrices, options] Takes output of sumHill
 
 plotHillsPoint::usage = "plotHillsPoint[list of matrices, {x, y}, options] takes output of
   sumHills and plots the selected point as a function of time."
+
+plotHillsDiff::usage = "plotHillsDiff[name of HILLS variable] returns a plot that can
+  be manipulated of the difference between two time points along a HILLS trajectory"
 
 importColvar::usage = "importColvar[file name] imports a COLVAR file and returns the data"
 
@@ -159,6 +162,11 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
         plotHillsPoint[Evaluate[variableName], {a, b}, opts];
     Evaluate[variableName] /: Plot[Evaluate[variableName], {a_, b_}] :=
         plotHillsPoint[Evaluate[variableName], {a, b}];
+    Evaluate[variableName] /: Plot[Evaluate[variableName], "diff",
+      opts:OptionsPattern[plotHillsDiff]] :=
+        plotHillsDiff[Evaluate[variableName], opts];
+    Evaluate[variableName] /: Plot[Evaluate[variableName], "diff"] :=
+        plotHillsDiff[Evaluate[variableName]];
     variableName
   ]
 
@@ -167,6 +175,7 @@ Options[plotHills] =
       manipulate -> True,
       timePoint -> Automatic,
       PlotRange -> All,
+      ColorFunction -> "TemperatureMap",
       ## & @@
         Options[ListPlot3D],
       ## & @@
@@ -199,8 +208,8 @@ plotHills[dataName_, opts:OptionsPattern[plotHills]]:=
       plot = Manipulate[
           ListPlot3D[data[[i]],
             FilterRules[{tempopts}, Options[ListPlot3D]]],
-          {{i, timeLength, "Time Chunk"}, 1, timeLength, 1,
-            Appearance->"Labeled"}
+          {{i, timepoint, "Time Chunk"}, 1, timeLength, 1,
+            Appearance -> "Labeled"}
           (*FilterRules[{tempopts}, Options[Manipulate]]*)
       ],
       plot = ListPlot3D[data[[timepoint]],
@@ -278,6 +287,7 @@ plotHillsPoint[dataName_, {x_:Null, y_:Null}, opts:OptionsPattern[]]:=
             FilterRules[{tempopts}, Options[ListLinePlot]]]],
           Show[
             ListDensityPlot[lastTimePoint,
+              ColorFunction -> "TemperatureMap",
               FilterRules[{tempopts}, Options[ListDensityPlot]]],
             Graphics[Locator[Dynamic[spotxy]]
             ]]}],
@@ -296,6 +306,29 @@ plotHillsPoint[dataName_, {x_:Null, y_:Null}, opts:OptionsPattern[]]:=
     plot not to be returned. *)
   ]
 
+Options[plotHillsDiff] =
+    {
+      ColorFunction -> "TemperatureMap",
+      ## & @@ Options[ListPlot3D]
+    }
+
+plotHillsDiff[dataName_, opts:OptionsPattern[]] :=
+    Module[
+      {tempOpts, data, numTimePoints},
+      tempOpts = {opts} ~Join~ Options[plotHillsDiff];
+      data = dataName[getData];
+      numTimePoints = Length[data];
+      Manipulate[
+        ListPlot3D[
+          data[[i]] - data[[i + timeDiff, All, 3]],
+          FilterRules[{tempOpts}, Options[ListPlot3D]]
+        ],
+        {{i, 1, "Ref. Time Point"},
+          1, numTimePoints - timeDiff, 1, Appearance -> "Labeled"},
+        {{timeDiff, 5, "Diff. in Time"},
+        1, numTimePoints - i, 1, Appearance -> "Labeled"}
+      ]
+    ]
 
 importColvar[fileName_String] := Module[{},
   (DeleteCases[#, {_String, __} | {}] &@
