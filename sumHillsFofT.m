@@ -34,6 +34,10 @@ plotColvar::usage = "plotColvar[colvar data] plots a COLVAR data set with Manipu
 plot2Colvar::usage = "plot2Colvar[colvar data 1, colvar data 2] plots 2 COLVAR data
   sets side by side with Manipulate"
 
+plotSSR::usage = "plotSSR[{data1, data2, ...}] plots the standard deviation of the
+  height of binned data. Takes imported COLVAR data and returns the plot.
+  Takes options for ListLinePlot and ssr"
+
 (* Begin Private Context *)
 Begin["`Private`"]
 
@@ -330,6 +334,50 @@ plotColvar[data_] := Module[{},
     {{number, 50000, "Number of Points to Plot"},
       1000, 100000, 1000,
       Appearance -> "Labeled"}]]
+
+Options[ssr] = {binSize -> 0.1, silent -> True, minDimension -> 100};
+
+ssr[data_, opts : OptionsPattern[]] :=
+    Module[{binned, mins, maxs, arraySize, flatArray, binFactor},
+      binFactor = 1/OptionValue[binSize];
+      mins = Min /@ Transpose[data];
+      maxs = Max /@ Transpose[data];
+      arraySize =
+          Max[{OptionValue[minDimension], #}] & /@
+              IntegerPart[(maxs - mins) * binFactor];
+      If[OptionValue[silent], "", Print["Size of array: ", arraySize]];
+      flatArray =
+          Flatten[Array[{##} &, arraySize, IntegerPart[mins * binFactor]], 1];
+      binned =
+          Tally[flatArray ~Join~ (IntegerPart /@ (binFactor * data))][[All, 2]] - 1;
+      N[StandardDeviation[Flatten[binned]]]]
+(* todo change minDimension to minRange or something like that that accounts for binSize/binFactor *)
+
+Options[plotSSR] = {
+  ssrSize -> 40000,
+  fineness -> 1000,
+  PlotRange -> All,
+  ## & @@ Options[ssr],
+  ## & @@ Options[ListLinePlot]};
+
+plotSSR[datas__, opts : OptionsPattern[]] := Module[
+  {plotData, chunkSize, tempOpts, numberofData, dataSpacing},
+  tempOpts = opts ~Join~ Options[plotSSR];
+  chunkSize = OptionValue[ssrSize];
+  dataSpacing = OptionValue[fineness];
+  numberofData = Length[datas];
+  plotData =
+      Transpose[Table[
+        ssr[#[[i ;; i + chunkSize]],
+          FilterRules[{tempOpts}, Options[ssr]]
+        ] & /@ datas,
+        {i, 1, Length[datas[[1]]] - chunkSize, dataSpacing}
+      ]];
+  ListLinePlot[plotData,
+    PlotLegends -> Range[numberofData],
+    FilterRules[{tempOpts}, Options[ListLinePlot]]
+  ]
+]
 
 (* End Private Context *)
 End[]
