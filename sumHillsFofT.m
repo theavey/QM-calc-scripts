@@ -4,9 +4,9 @@
 (* :Title: sumHillsFofT     *)
 (* :Context: sumHillsFofT`  *)
 (* :Author: Thomas Heavey   *)
-(* :Date: 7/01/15           *)
+(* :Date: 7/02/15           *)
 
-(* :Package Version: 0.2.3     *)
+(* :Package Version: 0.2.4     *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
@@ -21,10 +21,10 @@ sumHills::usage = "sumHills[HILLS_file, options] returns a list of 2D arrays tha
   Only made for 2 collective variables currently, but that can't be changed by
   making it check for the length of a row in the input data."
 
-plotHills::usage = "plotHills[list of matrices, options] Takes output of sumHills
+plotHills::usage = "plotHills[name of HILLS variable, options] Takes output of sumHills
   and plots time steps."
 
-plotHillsPoint::usage = "plotHillsPoint[list of matrices, {x, y}, options] takes output of
+plotHillsPoint::usage = "plotHillsPoint[name of HILLS variable, {x, y}, options] takes output of
   sumHills and plots the selected point as a function of time."
 
 plotHillsDiff::usage = "plotHillsDiff[name of HILLS variable] returns a plot that can
@@ -40,6 +40,11 @@ plot2Colvar::usage = "plot2Colvar[colvar data 1, colvar data 2] plots 2 COLVAR d
 plotSSR::usage = "plotSSR[{data1, data2, ...}] plots the standard deviation of the
   height of binned data. Takes imported COLVAR data and returns the plot.
   Takes options for ListLinePlot and ssr"
+
+plotHillsSSR::usage = "plotHillsSSR[name of HILLS variable, options] plots the
+  standard deviation of the difference of two time points from the summed HILLS file
+  as a function of time. With dynamic -> True (default), you can Manipulate the
+  amount of time between the two time points."
 
 (* Begin Private Context *)
 Begin["`Private`"]
@@ -393,24 +398,76 @@ Options[plotSSR] = {
   ## & @@ Options[ssr],
   ## & @@ Options[ListLinePlot]};
 
-plotSSR[datas__, opts : OptionsPattern[]] := Module[
-  {plotData, chunkSize, tempOpts, numberofData, dataSpacing},
-  tempOpts = opts ~Join~ Options[plotSSR];
-  chunkSize = OptionValue[ssrSize];
-  dataSpacing = OptionValue[fineness];
-  numberofData = Length[datas];
-  plotData =
-      Transpose[Table[
-        ssr[#[[i ;; i + chunkSize]],
-          FilterRules[{tempOpts}, Options[ssr]]
-        ] & /@ datas,
-        {i, 1, Length[datas[[1]]] - chunkSize, dataSpacing}
-      ]];
-  ListLinePlot[plotData,
-    PlotLegends -> Range[numberofData],
-    FilterRules[{tempOpts}, Options[ListLinePlot]]
-  ]
-]
+plotSSR[datas__, opts : OptionsPattern[]] :=
+    Module[
+      {plotData, chunkSize, tempOpts, numberofData, dataSpacing},
+      tempOpts = opts ~Join~ Options[plotSSR];
+      chunkSize = OptionValue[ssrSize];
+      dataSpacing = OptionValue[fineness];
+      numberofData = Length[datas];
+      plotData =
+          Transpose[Table[
+            ssr[#[[i ;; i + chunkSize]],
+              FilterRules[{tempOpts}, Options[ssr]]
+            ] & /@ datas,
+            {i, 1, Length[datas[[1]]] - chunkSize, dataSpacing}
+          ]];
+      ListLinePlot[plotData,
+        PlotLegends -> Range[numberofData],
+        FilterRules[{tempOpts}, Options[ListLinePlot]]
+      ]
+    ]
+
+
+hillsSSR = Compile[{{hillsTP1, _Real, 1}, {hillsTP2, _Real, 1}},
+  StandardDeviation[hillsTP1 - hillsTP2]];
+
+Options[plotHillsSSR] = {
+  timeDifference -> 10,
+  fineness -> 1,
+  PlotRange -> All,
+  dynamic -> True,
+  ## & @@ Options[hillsSSR],
+  ## & @@ Options[ListLinePlot]};
+
+plotHillsSSR[hillsVarName_, opts:OptionsPattern[]] :=
+    Module[
+      {data, plotData, timeDiff, tempOpts, dataSpacing},
+      (* Combined input and default options *)
+      tempOpts = {opts} ~Join~ Options[plotHillsSSR];
+      (* Number of time chunks apart for taking the difference.
+        Default is 10 time chunks, or 1 ns. *)
+      timeDiff = OptionValue[timeDifference];
+      (* How often to take differences. Default is every time chunk *)
+      dataSpacing = OptionValue[fineness];
+      (* data obtained from input variable name, but we only want the heights,
+        so just take the third column from All rows of All time points,
+        then Chop it (make small numbers exactly 0) so it can be passed
+        so it can be passed to the compiled standard deviation function. *)
+      data = Chop[
+        hillsVarName[sumHillsFofT`Private`getData][[All, All, 3]]];
+      If[OptionValue[dynamic],
+        Manipulate[
+          ListLinePlot[
+            Table[
+              hillsSSR[data[[i]], data[[i + timeDiffM]]],
+              {i, 1, Length[data] - timeDiffM, dataSpacing}
+            ],
+            FilterRules[{tempOpts}, Options[ListLinePlot]]],
+          {{timeDiffM, timeDiff, "Time Chunk Difference"},
+            1, Length[data] - 1, 1,
+            Appearance -> "Labeled"}
+        ],
+        (* Using the chopped data, make a table with the desired time points,
+          and send them to hillsSSR to get the standard deviations *)
+        plotData = Table[
+          hillsSSR[data[[i]], data[[i + timeDiff]]],
+          {i, 1, Length[data] - timeDiff, dataSpacing}
+        ];
+        ListLinePlot[plotData,
+          FilterRules[{tempOpts}, Options[ListLinePlot]]
+        ]]
+    ]
 
 (* End Private Context *)
 End[]
