@@ -31,9 +31,9 @@ SetOptions[$Output, FormatType -> OutputForm];
 (* :Title: sumHillsFofT     *)
 (* :Context: sumHillsFofT`  *)
 (* :Author: Thomas Heavey   *)
-(* :Date: 7/01/15           *)
+(* :Date: 7/05/15           *)
 
-(* :Package Version: 0.2.3     *)
+(* :Package Version: 0.2.5     *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
@@ -59,7 +59,7 @@ plotHillsDiff::usage = "plotHillsDiff[name of HILLS variable] returns a plot tha
 
 (* Begin Private Context *)
 Begin["`Private`"]
-
+(* todo remove private context? Might make import cleaner *)
 processData =
     Compile[{{data, _Real, 2}, {grid2D, _Real, 3}, {gaussianMatrix, _Real, 2},
       {gridLengthCV1, _Integer}, {gridLengthCV2, _Integer},
@@ -336,7 +336,11 @@ plotHillsDiff[dataName_, opts:OptionsPattern[]] :=
       numTimePoints = Length[data];
       Manipulate[
         ListPlot3D[
-          data[[i]] - data[[i + timeDiff, All, 3]],
+          Transpose[{
+            data[[1, All, 1]],
+            data[[1, All, 2]],
+            data[[i + timeDiff, All, 3]] - data[[i, All, 3]]
+          }],
           FilterRules[{tempOpts}, Options[ListPlot3D]]
         ],
         {{i, 1, "Ref. Time Point"},

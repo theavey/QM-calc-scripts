@@ -4,9 +4,9 @@
 (* :Title: sumHillsFofT     *)
 (* :Context: sumHillsFofT`  *)
 (* :Author: Thomas Heavey   *)
-(* :Date: 7/02/15           *)
+(* :Date: 7/05/15           *)
 
-(* :Package Version: 0.2.4     *)
+(* :Package Version: 0.2.5     *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
@@ -325,7 +325,11 @@ plotHillsDiff[dataName_, opts:OptionsPattern[]] :=
       numTimePoints = Length[data];
       Manipulate[
         ListPlot3D[
-          data[[i]] - data[[i + timeDiff, All, 3]],
+          Transpose[{
+            data[[1, All, 1]],
+            data[[1, All, 2]],
+            data[[i + timeDiff, All, 3]] - data[[i, All, 3]]
+          }],
           FilterRules[{tempOpts}, Options[ListPlot3D]]
         ],
         {{i, 1, "Ref. Time Point"},
