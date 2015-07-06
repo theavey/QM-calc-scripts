@@ -432,7 +432,10 @@ plotSSR[datas__, opts : OptionsPattern[]] :=
 
 
 hillsSSR = Compile[{{hillsTP1, _Real, 1}, {hillsTP2, _Real, 1}},
-  StandardDeviation[hillsTP1 - hillsTP2]];
+  StandardDeviation[hillsTP1 - hillsTP2]
+  (*, CompilationTarget -> "C"*)
+  (* At least on my computer, it's a little slower compiled to C code *)
+];
 
 Options[plotHillsSSR] = {
   timeDifference -> 10,
