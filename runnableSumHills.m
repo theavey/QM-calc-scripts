@@ -25,41 +25,23 @@ If[Length[$ScriptCommandLine] > 1,
 
 SetOptions[$Output, FormatType -> OutputForm];
 
+LaunchKernels[1]
+
 (* Mathematica Package         *)
 (* Created by IntelliJ IDEA    *)
 
 (* :Title: sumHillsFofT     *)
 (* :Context: sumHillsFofT`  *)
 (* :Author: Thomas Heavey   *)
-(* :Date: 7/05/15           *)
+(* :Date: 7/06/15           *)
 
-(* :Package Version: 0.2.5     *)
+(* :Package Version: 0.2.7     *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
 (* :Discussion:                *)
 
-BeginPackage["sumHillsFofT`"]
-(* Exported symbols added here with SymbolName::usage *)
 
-sumHills::usage = "sumHills[HILLS_file, options] returns a list of 2D arrays that
-  are the time steps of the growth of the height of the negative of the free energy
-  surface from a PLUMED metadynamics calculation.
-  Only made for 2 collective variables currently, but that can't be changed by
-  making it check for the length of a row in the input data."
-
-plotHills::usage = "plotHills[list of matrices, options] Takes output of sumHills
-  and plots time steps."
-
-plotHillsPoint::usage = "plotHillsPoint[list of matrices, {x, y}, options] takes output of
-  sumHills and plots the selected point as a function of time."
-
-plotHillsDiff::usage = "plotHillsDiff[name of HILLS variable] returns a plot that can
-  be manipulated of the difference between two time points along a HILLS trajectory"
-
-(* Begin Private Context *)
-Begin["`Private`"]
-(* todo remove private context? Might make import cleaner *)
 processData =
     Compile[{{data, _Real, 2}, {grid2D, _Real, 3}, {gaussianMatrix, _Real, 2},
       {gridLengthCV1, _Integer}, {gridLengthCV2, _Integer},
@@ -133,8 +115,8 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
       gridLengthCV1 = Ceiling[(minMaxCV1[[2]] - minMaxCV1[[1]]) / gridSize];
       gridLengthCV2 = Ceiling[(minMaxCV2[[2]] - minMaxCV2[[1]]) / gridSize];
       (* Values along grid axes *)
-      gridCV1 = Table[i, Evaluate[{i, ## & @@ minMaxCV1, gridSize}]];
-      gridCV2 = Table[i, Evaluate[{i, ## & @@ minMaxCV2, gridSize}]];
+      gridCV1 = Round[Table[i, Evaluate[{i, ## & @@ minMaxCV1, gridSize}]], gridSize];
+      gridCV2 = Round[Table[i, Evaluate[{i, ## & @@ minMaxCV2, gridSize}]], gridSize];
       Print["Found grid parameters:"];
       Print["  Collective variable 1 range: ", minMaxCV1];
       Print["  Collective variable 2 range: ", minMaxCV2];
@@ -326,7 +308,7 @@ Options[plotHillsDiff] =
     {
       ColorFunction -> "TemperatureMap",
       ## & @@ Options[ListPlot3D]
-    }
+    };
 
 plotHillsDiff[dataName_, opts:OptionsPattern[]] :=
     Module[
@@ -351,13 +333,7 @@ plotHillsDiff[dataName_, opts:OptionsPattern[]] :=
     ]
 
 (* End Private Context *)
-End[]
 
-EndPackage[]
-
-LaunchKernels[1]
-
-Needs["sumHillsFofT`"]
 
 Print["Loaded sum hills package, applying..."]
 
@@ -367,6 +343,6 @@ Print["sumHills complete, trying to save file..."]
 
 FullDefinition[output] >> "mathematicaHILLS.m"
 
-Print["File saved; done; quitting..."]
+Print["File saved as mathematicaHILLS.m; done; quitting..."]
 
 Quit[]

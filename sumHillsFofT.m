@@ -6,7 +6,7 @@
 (* :Author: Thomas Heavey   *)
 (* :Date: 7/06/15           *)
 
-(* :Package Version: 0.2.6     *)
+(* :Package Version: 0.2.7     *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
@@ -130,8 +130,8 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
       gridLengthCV1 = Ceiling[(minMaxCV1[[2]] - minMaxCV1[[1]]) / gridSize];
       gridLengthCV2 = Ceiling[(minMaxCV2[[2]] - minMaxCV2[[1]]) / gridSize];
       (* Values along grid axes *)
-      gridCV1 = Table[i, Evaluate[{i, ## & @@ minMaxCV1, gridSize}]];
-      gridCV2 = Table[i, Evaluate[{i, ## & @@ minMaxCV2, gridSize}]];
+      gridCV1 = Round[Table[i, Evaluate[{i, ## & @@ minMaxCV1, gridSize}]], gridSize];
+      gridCV2 = Round[Table[i, Evaluate[{i, ## & @@ minMaxCV2, gridSize}]], gridSize];
       Print["Found grid parameters:"];
       Print["  Collective variable 1 range: ", minMaxCV1];
       Print["  Collective variable 2 range: ", minMaxCV2];
