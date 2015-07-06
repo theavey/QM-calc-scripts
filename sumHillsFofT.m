@@ -46,6 +46,14 @@ plotHillsSSR::usage = "plotHillsSSR[name of HILLS variable, options] plots the
   as a function of time. With dynamic -> True (default), you can Manipulate the
   amount of time between the two time points."
 
+plotDensityHillsSSR::usage = "plotDensityHillsSSR[name of HILLS var, options]
+  plots the standard deviation of the difference of two time points as a function
+  of both time and time difference as a flat colored plot."
+
+plot3DHillsSSR::usage = "plot3DHillsSSR[name of HILLS var, options]
+  plots the standard deviation of the difference of two time points as a function
+  of both time and time difference as a 3D plot."
+
 (* Begin Private Context *)
 Begin["`Private`"]
 
@@ -471,6 +479,65 @@ plotHillsSSR[hillsVarName_, opts:OptionsPattern[]] :=
         ListLinePlot[plotData,
           FilterRules[{tempOpts}, Options[ListLinePlot]]
         ]]
+    ]
+
+Options[plotDensityHillsSSR] = {
+  timeSpacing -> 1,
+  diffSpacing -> 1,
+  ColorFunction -> "TemperatureMap",
+  ## & @@ Options[hillsSSR],
+  ## & @@ Options[ListDensityPlot]};
+
+plotDensityHillsSSR[hillsVarName_, opts : OptionsPattern[]] :=
+    Module[{data, plotData, tempOpts, dataSpacing, diffFiness},
+    (* Combined input and default options *)
+      tempOpts = {opts}~Join~Options[plotDensityHillsSSR];
+      dataSpacing = OptionValue[timeSpacing];
+      diffFiness = OptionValue[diffSpacing];
+      data = Chop[
+        hillsVarName[sumHillsFofT`Private`getData][[All, All, 3]]];
+      plotData =
+          PadLeft[
+            Table[
+              Table[
+                hillsSSR[data[[time]], data[[time + timeDiff]]],
+                {time, 1, Length[data] - timeDiff, dataSpacing}],
+              {timeDiff, 1, Length[data] - 1, diffFiness}
+            ]];
+      ListDensityPlot[plotData,
+        FrameLabel -> {"Time", "\[CapitalDelta] Time"},
+        FilterRules[{tempOpts}, Options[ListDensityPlot]]
+      ]
+    ]
+
+Options[plot3DHillsSSR] = {
+  timeSpacing -> 1,
+  diffSpacing -> 1,
+  ColorFunction -> "TemperatureMap",
+  PlotRange -> All,
+  ## & @@ Options[hillsSSR],
+  ## & @@ Options[ListPlot3D]};
+
+plot3DHillsSSR[hillsVarName_, opts : OptionsPattern[]] :=
+    Module[{data, plotData, tempOpts, dataSpacing, diffFiness},
+    (* Combined input and default options *)
+      tempOpts = {opts}~Join~Options[plot3DHillsSSR];
+      dataSpacing = OptionValue[timeSpacing];
+      diffFiness = OptionValue[diffSpacing];
+      data = Chop[
+        hillsVarName[sumHillsFofT`Private`getData][[All, All, 3]]];
+      plotData =
+          PadLeft[
+            Table[
+              Table[
+                hillsSSR[data[[time]], data[[time + timeDiff]]],
+                {time, 1, Length[data] - timeDiff, dataSpacing}],
+              {timeDiff, 1, Length[data] - 1, diffFiness}
+            ]];
+      ListPlot3D[plotData,
+        AxesLabel -> {"Time", "\[CapitalDelta] Time", ""},
+        FilterRules[{tempOpts}, Options[ListPlot3D]]
+      ]
     ]
 
 (* End Private Context *)
