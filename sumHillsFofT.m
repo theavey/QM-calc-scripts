@@ -487,6 +487,7 @@ plotHillsSSR[hillsVarName_, opts:OptionsPattern[]] :=
 Options[plotDensityHillsSSR] = {
   timeSpacing -> 1,
   diffSpacing -> 1,
+  skipFirst -> 0,
   ColorFunction -> "TemperatureMap",
   ## & @@ Options[hillsSSR],
   ## & @@ Options[ListDensityPlot]};
@@ -500,11 +501,14 @@ plotDensityHillsSSR[hillsVarName_, opts : OptionsPattern[]] :=
       data = Chop[
         hillsVarName[sumHillsFofT`Private`getData][[All, All, 3]]];
       plotData =
-          PadLeft[
+          PadRight[
             Table[
               Table[
                 hillsSSR[data[[time]], data[[time + timeDiff]]],
-                {time, 1, Length[data] - timeDiff, dataSpacing}],
+                {time,
+                  OptionValue[skipFirst] + 1,
+                  Length[data] - timeDiff,
+                  dataSpacing}],
               {timeDiff, 1, Length[data] - 1, diffFiness}
             ]];
       ListDensityPlot[plotData,
@@ -516,6 +520,7 @@ plotDensityHillsSSR[hillsVarName_, opts : OptionsPattern[]] :=
 Options[plot3DHillsSSR] = {
   timeSpacing -> 1,
   diffSpacing -> 1,
+  skipFirst -> 0,
   ColorFunction -> "TemperatureMap",
   PlotRange -> All,
   ## & @@ Options[hillsSSR],
@@ -530,11 +535,14 @@ plot3DHillsSSR[hillsVarName_, opts : OptionsPattern[]] :=
       data = Chop[
         hillsVarName[sumHillsFofT`Private`getData][[All, All, 3]]];
       plotData =
-          PadLeft[
+          PadRight[
             Table[
               Table[
                 hillsSSR[data[[time]], data[[time + timeDiff]]],
-                {time, 1, Length[data] - timeDiff, dataSpacing}],
+                {time,
+                  OptionValue[skipFirst] + 1,
+                  Length[data] - timeDiff,
+                  dataSpacing}],
               {timeDiff, 1, Length[data] - 1, diffFiness}
             ]];
       ListPlot3D[plotData,
