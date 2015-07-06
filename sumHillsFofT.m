@@ -4,9 +4,9 @@
 (* :Title: sumHillsFofT     *)
 (* :Context: sumHillsFofT`  *)
 (* :Author: Thomas Heavey   *)
-(* :Date: 7/05/15           *)
+(* :Date: 7/06/15           *)
 
-(* :Package Version: 0.2.5     *)
+(* :Package Version: 0.2.6     *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
@@ -509,7 +509,10 @@ plotDensityHillsSSR[hillsVarName_, opts : OptionsPattern[]] :=
                   OptionValue[skipFirst] + 1,
                   Length[data] - timeDiff,
                   dataSpacing}],
-              {timeDiff, 1, Length[data] - 1, diffFiness}
+              {timeDiff,
+                1,
+                Length[data] - OptionValue[skipFirst] - 1,
+                diffFiness}
             ]];
       ListDensityPlot[plotData,
         FrameLabel -> {"Time", "\[CapitalDelta] Time"},
@@ -543,7 +546,10 @@ plot3DHillsSSR[hillsVarName_, opts : OptionsPattern[]] :=
                   OptionValue[skipFirst] + 1,
                   Length[data] - timeDiff,
                   dataSpacing}],
-              {timeDiff, 1, Length[data] - 1, diffFiness}
+              {timeDiff,
+                1,
+                Length[data] - OptionValue[skipFirst] - 1,
+                diffFiness}
             ]];
       ListPlot3D[plotData,
         AxesLabel -> {"Time", "\[CapitalDelta] Time", ""},
