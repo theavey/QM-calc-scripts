@@ -4,9 +4,9 @@
 (* :Title: sumHillsFofT     *)
 (* :Context: sumHillsFofT`  *)
 (* :Author: Thomas Heavey   *)
-(* :Date: 7/06/15           *)
+(* :Date: 7/07/15           *)
 
-(* :Package Version: 0.2.7     *)
+(* :Package Version: 0.2.8     *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
@@ -69,7 +69,7 @@ processData =
             Map[
               Total[
                 RotateLeft[
-                  gaussianMatrix * #[[6]],
+                  - gaussianMatrix * #[[6]],
                   Round[
                     {gridLengthCV1 - (#[[2]] - minMaxCV1[[1]])/gridSize,
                       gridLengthCV2 - (#[[3]] - minMaxCV2[[1]])/gridSize}
@@ -336,7 +336,7 @@ plotHillsDiff[dataName_, opts:OptionsPattern[]] :=
           Transpose[{
             data[[1, All, 1]],
             data[[1, All, 2]],
-            data[[i + timeDiff, All, 3]] - data[[i, All, 3]]
+            data[[i, All, 3]] - data[[i + timeDiff, All, 3]]
           }],
           FilterRules[{tempOpts}, Options[ListPlot3D]]
         ],
