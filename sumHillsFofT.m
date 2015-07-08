@@ -4,9 +4,9 @@
 (* :Title: sumHillsFofT     *)
 (* :Context: sumHillsFofT`  *)
 (* :Author: Thomas Heavey   *)
-(* :Date: 7/07/15           *)
+(* :Date: 7/08/15           *)
 
-(* :Package Version: 0.2.8     *)
+(* :Package Version: 0.2.8.1   *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
@@ -56,7 +56,8 @@ plot3DHillsSSR::usage = "plot3DHillsSSR[name of HILLS var, options]
 
 (* Begin Private Context *)
 Begin["`Private`"]
-
+(* todo create function to fix old processed summed Hills variables (sum...`Pr..`getData vs. just getData) use Share[]? *)
+(* todo delete the import functionality in this package? only useful for testing? *)
 processData =
     Compile[{{data, _Real, 2}, {grid2D, _Real, 3}, {gaussianMatrix, _Real, 2},
       {gridLengthCV1, _Integer}, {gridLengthCV2, _Integer},
@@ -159,6 +160,7 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
     (* Set downvalues of output *)
     Evaluate[variableName][getData] = processedData;
     Evaluate[variableName][getMinMax] = {minMaxCV1, minMaxCV2};
+      (* gridSize is grid spacing *)
     Evaluate[variableName][getGridSize] = gridSize;
     Evaluate[variableName][getGrid] = {gridCV1, gridCV2};
       (* Times of time chunks (only rows beginning through end by every timeChunk) *)
@@ -296,7 +298,7 @@ plotHillsPoint[dataName_, {x_:Null, y_:Null}, opts:OptionsPattern[]]:=
                     nearestFunction[spotxy][[1]],
                     3
                     ]]]}],
-            FrameLabel -> {"Time / ps", "- (Free Energy)"},
+            FrameLabel -> {"Time / ps", "Free Energy"},
             FilterRules[{tempopts}, Options[ListLinePlot]]]],
           Show[
             ListDensityPlot[lastTimePoint,
@@ -310,7 +312,7 @@ plotHillsPoint[dataName_, {x_:Null, y_:Null}, opts:OptionsPattern[]]:=
       (* From All times, take determined location, then just take the height there. *)
       plotData = Transpose[{times, Flatten[data[[All, location, 3]]]}];
       plot = ListLinePlot[plotData,
-        FrameLabel -> {"Time", "- (Free Energy)"},
+        FrameLabel -> {"Time", "Free Energy"},
         FilterRules[{tempopts}, Options[ListLinePlot]]];
       Return[plot]
     ]
@@ -385,13 +387,19 @@ plotColvar[data_] := Module[{},
       1000, 100000, 1000,
       Appearance -> "Labeled"}]]
 
-Options[ssr] = {binSize -> 0.1, silent -> True, minDimension -> 100};
+Options[ssr] =
+    {
+      binSize -> 0.1,
+      silent -> True,
+      minDimension -> 100
+    };
 
 ssr[data_, opts : OptionsPattern[]] :=
     Module[{binned, mins, maxs, arraySize, flatArray, binFactor},
-      binFactor = 1/OptionValue[binSize];
+      binFactor = 1 / OptionValue[binSize];
       mins = Min /@ Transpose[data];
       maxs = Max /@ Transpose[data];
+      (* Find array size in both dimensions *)
       arraySize =
           Max[{OptionValue[minDimension], #}] & /@
               IntegerPart[(maxs - mins) * binFactor];
@@ -495,9 +503,16 @@ Options[plotDensityHillsSSR] = {
 plotDensityHillsSSR[hillsVarName_, opts : OptionsPattern[]] :=
     Module[{data, plotData, tempOpts, dataSpacing, diffFiness},
     (* Combined input and default options *)
-      tempOpts = {opts}~Join~Options[plotDensityHillsSSR];
+      tempOpts = {opts} ~Join~ Options[plotDensityHillsSSR];
       dataSpacing = OptionValue[timeSpacing];
       diffFiness = OptionValue[diffSpacing];
+      If[dataSpacing == diffFiness == 1,
+        If[Input["This may take a while with timeSpacing = diffSpacing = 1\nContinue?", True],
+          "",
+          Return["Okay, try setting timeSpacing, diffSpacing, and skipFirst options"],
+          Return["Okay, try setting timeSpacing, diffSpacing, and skipFirst options"]
+        ],
+        ""];
       data = Chop[
         hillsVarName[sumHillsFofT`Private`getData][[All, All, 3]]];
       plotData =
@@ -532,9 +547,16 @@ Options[plot3DHillsSSR] = {
 plot3DHillsSSR[hillsVarName_, opts : OptionsPattern[]] :=
     Module[{data, plotData, tempOpts, dataSpacing, diffFiness},
     (* Combined input and default options *)
-      tempOpts = {opts}~Join~Options[plot3DHillsSSR];
+      tempOpts = {opts} ~Join~ Options[plot3DHillsSSR];
       dataSpacing = OptionValue[timeSpacing];
       diffFiness = OptionValue[diffSpacing];
+      If[dataSpacing == diffFiness == 1,
+        If[Input["This may take a while with timeSpacing = diffSpacing = 1\nContinue?", True],
+          "",
+          Return["Okay, try setting timeSpacing, diffSpacing, and skipFirst options"],
+          Return["Okay, try setting timeSpacing, diffSpacing, and skipFirst options"]
+        ],
+        ""];
       data = Chop[
         hillsVarName[sumHillsFofT`Private`getData][[All, All, 3]]];
       plotData =
