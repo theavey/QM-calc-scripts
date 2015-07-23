@@ -281,7 +281,7 @@ plotHillsPoint[dataName_, {x_:Null, y_:Null}, opts:OptionsPattern[]]:=
                       nearestFunction[spotxy][[1]],
                       3
                       ]]]}],
-              FrameLabel -> {"Time / ps", "- (Free Energy)"},
+              FrameLabel -> {"Time / ps", "Free Energy"},
               FilterRules[{tempopts}, Options[ListLinePlot]]]],
             Show[
               ListDensityPlot[lastTimePoint,
@@ -295,7 +295,7 @@ plotHillsPoint[dataName_, {x_:Null, y_:Null}, opts:OptionsPattern[]]:=
         (* From All times, take determined location, then just take the height there. *)
         plotData = Transpose[{times, Flatten[data[[All, location, 3]]]}];
         plot = ListLinePlot[plotData,
-          FrameLabel -> {"Time", "- (Free Energy)"},
+          FrameLabel -> {"Time", "Free Energy"},
           FilterRules[{tempopts}, Options[ListLinePlot]]];
         Return[plot]
       ]
