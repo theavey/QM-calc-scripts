@@ -4,9 +4,9 @@
 (* :Title: sumHillsFofT     *)
 (* :Context: sumHillsFofT`  *)
 (* :Author: Thomas Heavey   *)
-(* :Date: 7/28/15           *)
+(* :Date: 7/29/15           *)
 
-(* :Package Version: 0.3.0.0   *)
+(* :Package Version: 0.3.0.1   *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
@@ -55,7 +55,7 @@ plot3DHillsSSR::usage = "plot3DHillsSSR[name of HILLS var, options]
   of both time and time difference as a 3D plot.";
 
 (* Begin Private Context *)
-Begin["`Private`"]
+Begin["`Private`"];
 (* todo create function to fix old processed summed Hills variables (sum...`Pr..`getData vs. just getData) use Share[]? *)
 (* todo delete the import functionality in this package? only useful for testing? *)
 
@@ -253,7 +253,7 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
       Evaluate[variableName] /: Plot[Evaluate[variableName], "diff"] :=
           plotHillsDiff[Evaluate[variableName]];
       variableName
-  ];
+  ]
 
 sumHills::griderror = "gridLength (`1`) does not match the length of generated grid (`2`) for CV `3`";
 
@@ -283,7 +283,7 @@ plotHills[dataName_, opts:OptionsPattern[plotHills]]:=
     timeLength = Length[data];
     timepoint = If[
         OptionValue[timePoint] === Automatic,
-        -1,
+        timeLength,
         If[
           Abs[OptionValue[timePoint]] > timeLength,
           Print["Given timepoint not in data, using last point"];
@@ -397,7 +397,7 @@ Options[plotHillsDiff] =
     {
       ColorFunction -> "TemperatureMap",
       ## & @@ Options[ListPlot3D]
-    }
+    };
 
 plotHillsDiff[dataName_, opts:OptionsPattern[]] :=
     Module[
@@ -652,6 +652,6 @@ plot3DHillsSSR[hillsVarName_, opts : OptionsPattern[]] :=
     ]
 
 (* End Private Context *)
-End[]
+End[];
 
 EndPackage[]
