@@ -215,13 +215,27 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
         (* gridSize is grid spacing *)
       Evaluate[variableName][getGridSize] = gridSize;
       Evaluate[variableName][getGrid] = gridCVs;
+      Evaluate[variableName][getTimeChunk] = timeChunk;
+      Evaluate[variableName][getTimeChunkwUnits] = timeChunkwUnits;
         (* Times of time chunks (only rows beginning through end by every timeChunk) *)
       Evaluate[variableName][getTimes] = rawData[[;; ;; timeChunk, 1]];
-      (* todo add getNumofCVs *)
-      (* todo add generic "about"? *)
-      (* todo add getTimeChunkwunits? *)
+      Evaluate[variableName][getNumofCVs] = numofCVs;
+      Evaluate[variableName][about] =
+          {
+            {"Number of CVs ", numofCVs},
+            {"Number of points per time chunk ", timeChunk},
+            {"Picoseconds per time chunk ", timeChunkwUnits},
+            {"Number of time points/chunks ", Length[processedData]},
+            {"Grid spacing (angstroms) ", gridSize},
+            {"Dimensions of grid ", gridLengthCVs},
+            {"Originally processed on ", Date[]},
+            {"Downvalues originally assigned: ",
+              {getData, getMinMax, getGridSize,
+                getGrid, getTimeChunk, getTimeChunkwUnits,
+              getTimes, getNumofCVs, about}}
+          };
       (* Set upvalues of output *)
-      (* todo change the downvalues based on numofCVs (or update functions to take different numbers of CVs) *)
+      (* todo change the upvalues based on numofCVs (or update functions to take different numbers of CVs) *)
       Evaluate[variableName] /: Plot[Evaluate[variableName],
         opts:OptionsPattern[plotHills]] :=
           plotHills[Evaluate[variableName], opts];
