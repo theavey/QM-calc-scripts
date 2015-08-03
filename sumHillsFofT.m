@@ -6,7 +6,7 @@
 (* :Author: Thomas Heavey   *)
 (* :Date: 7/29/15           *)
 
-(* :Package Version: 0.3.0.1   *)
+(* :Package Version: 0.3.0.2   *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
@@ -123,7 +123,7 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
         Print[StringForm[sumHills::griderror, gridLengthCVs[[i]], Length[gridCVs[[i]]], i]]],
         {i, numofCVs}];
       Print["Found grid parameters:"];
-      Table[Print[StringForm["  Collective variable `` range: `` Ang", i, minMaxCVs[[i]]]], {i, numofCVs}];
+      Table[Print[StringForm["  Collective variable `` range: `` Ang or Rad", i, minMaxCVs[[i]]]], {i, numofCVs}];
       Print[StringForm["  Grid dimensions: ``", gridLengthCVs]];
       Print[StringForm["  Size of time chunks: `` ps", timeChunkwUnits]];
       (* Create gaussian matrix that will be translated as needed later. *)
@@ -131,7 +131,7 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
         {gridLengthCVs,
           sigmaCVs / gridSize},
         Method -> "Gaussian"]
-          * 2 Pi Apply[Times, sigmaCVs] / gridSize^2,
+          * 2 Pi Apply[Times, sigmaCVs] / gridSize^numofCVs,
         10^-100];
       (* Function that will first find the offset of the current point
       to the center of gaussian matrix scaled to the grid.
@@ -140,9 +140,9 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
       gridAllD = Quiet[Array[
         Evaluate[Table[gridCVs[[i, Slot[i]]], {i, numofCVs}]] &,
         gridLengthCVs],
-        {Part::pkspec1}];
+        {Part::pkspec1, Part::pspec}];
       (* Blank filler that is a list the same length as rawData elements *)
-      filler = Table[0., (3 + 2 * numofCVs)];
+      filler = Table[0., Evaluate[(3 + 2 * numofCVs)]];
       (* Makes a list the length of the number of points in gaussianMatrix,
         then makes it into the same shape as gaussianMatrix, then takes the
         part that we care about, Flattens it. This is the parts of the
@@ -225,8 +225,8 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
             {"Number of CVs ", numofCVs},
             {"Number of points per time chunk ", timeChunk},
             {"Picoseconds per time chunk ", timeChunkwUnits},
-            {"Number of time points/chunks ", Length[processedData]},
-            {"Grid spacing (angstroms) ", gridSize},
+            {"Number of time points (chunks) ", Length[processedData]},
+            {"Grid spacing (angstroms or rad) ", gridSize},
             {"Dimensions of grid ", gridLengthCVs},
             {"Originally processed on ", Date[]},
             {"Downvalues originally assigned: ",
