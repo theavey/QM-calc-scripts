@@ -63,6 +63,14 @@ parser.add_argument('-o', '--output_name', default='summedHills.m',
                     help='Name of the file to be output')
 parser.add_argument('-e', '--exists', action='store_true',
                     help='Use this argument if the fes data already exists')
+parser.add_argument('-c', '--clean', type=int, default=2,
+                    help='Argument for how much to clean up\n'
+                         '0 does not delete or move anything\n'
+                         '>0 moves output to starting folder '
+                         'and deletes copy of HILLS file\n'
+                         '>1 deletes temp data file\n'
+                         '>2 deletes temp folder and contents\n'
+                         'default is 2')
 args = parser.parse_args()
 
 
@@ -156,18 +164,18 @@ def read_plumed_stuff():
     temporary file that can then be read to put the data
     into the file that Mathematica can read.
     If defines the global variable num_of_cvs."""
-    global num_of_cvs, formatted_data
+    global num_of_cvs, formatted_data, fes_file_names
     print('Reading PLUMED output files')
-    file_names = glob.glob('fes*.dat')
+    fes_file_names = glob.glob('fes*.dat')
     # Make sure the list is in the proper order:
-    file_names.sort()         # sort files alphanumerically
-    file_names.sort(key=len)  # sort files by length
+    fes_file_names.sort()         # sort files alphanumerically
+    fes_file_names.sort(key=len)  # sort files by length
     # Find number of CVs:
     #  At least in the current implementation of PLUMED, the output is
     #  the list of CV coordinates, then the height there, then the
     #  derivative with respect to each of the CVs, hence the
     #  (number of fields - 1) / 2.
-    with open(file_names[0], 'r') as file:
+    with open(fes_file_names[0], 'r') as file:
         for line in file:
             if line.startswith('#'):
                 continue
@@ -177,10 +185,11 @@ def read_plumed_stuff():
                 num_of_cvs = int(num_of_cvs)
             else:
                 print('number of CVs found to be {}!'.format(num_of_cvs))
-                num_of_cvs = rlinput('Real number of CVs = ', int(num_of_cvs))
+                num_of_cvs = rlinput('Real number of CVs = ',
+                                     str(int(num_of_cvs)))
             break
     all_data = []
-    for file in file_names:
+    for file in fes_file_names:
         f_data = []
         if args.verbose:
             print('Reading file {}'.format(file))
@@ -253,17 +262,38 @@ def clean_up():
     It will ask if the temp data should be deleted, and if so, will clean
     it all up. It can also move the output file back to the original
     directory.
-    !! put in info about defaults here !!
+    Default is to move output file to the starting directory, removes
+    the HILLS file if copied, and removes the temp data file. Use -c
+    argument to change this behavior.
     """
-    # print('Cleaning up...')
-    pass
-# todo decide on defaults for cleaning up
-# todo add arguments for defaults for cleaning up
+    print('Cleaning up...')
+    if args.clean > 0:
+        if args.verbose:
+            print('Copying {} to {}...'.format(args.output_name, current_dir))
+        shutil.copy(args.output_name, current_dir)
+        if not args.exists:
+            # If HILLS file was copied (only true if args.exists is false)
+            # delete the copy
+            if args.verbose:
+                print('Removing {}...'.format(args.hills))
+            os.remove(args.hills)
+    if args.clean > 1:
+        if args.verbose:
+            print('Removing {}...'.format(args.temp_file))
+        os.remove(args.temp_file)
+    if args.clean > 2:
+        temp_folder = current_dir + '/' + args.folder
+        if args.verbose:
+            print('Removing {} and contents...'.format(temp_folder))
+        shutil.rmtree(temp_folder)
+    print('Done cleaning up files/folders.')
 
 
+current_dir = os.getcwd()
 if not args.exists:
     setup_folder()
     run_plumed_sum_hills()
 read_plumed_stuff()
 data_into_mfile()
+clean_up()
 print('Done!')
