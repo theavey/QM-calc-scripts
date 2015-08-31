@@ -33,6 +33,8 @@ import os
 import shutil
 from datetime import datetime
 
+__version__ = 0.1
+
 parser = argparse.ArgumentParser(description='Use PLUMED utility to sum '
                                              'HILLS and then put into '
                                              'Mathematica friendly format')
@@ -41,18 +43,20 @@ parser.add_argument('-H', '--hills', default='HILLS',
 parser.add_argument('-s', '--stride', default=10000,
                     help='specify the stride for integrating '
                          'hills file (default 1000)')
-parser.add_argument('-i', '--min', default=None, # todo add type/''
+# todo figure out how to get -pi or -3.14,-3.14 to work with --min
+parser.add_argument('-i', '--min', default='',
                     help='the lower bounds for the grid')
-parser.add_argument('-a', '--max', default=None,
+parser.add_argument('-a', '--max', default='',
                     help='the upper bounds for the grid')
-parser.add_argument('-b', '--bin', default=None,
+parser.add_argument('-b', '--bin', default='',
                     help='the number of bins for the grid')
-parser.add_argument('-p', '--spacing', default=None,
-                    help='The spacing for the grid. Currently unused')
+parser.add_argument('-p', '--spacing', default='',
+                    help='The spacing for the grid. Currently unused!')
 parser.add_argument('-v', '--verbose', action='store_true',
                     help='make script more verbose')
 parser.add_argument('-f', '--folder', default='SumHills',
-                    help='Folder in which this will be run')
+                    help='Folder in which this will be run. Can be '
+                         'deleted automatically using -c 3.')
 parser.add_argument('-t', '--temp_file', default='temp_data_file.m',
                     help='File in which to store all the data')
 parser.add_argument('-n', '--var_name', default='summedHills',
@@ -71,6 +75,8 @@ parser.add_argument('-c', '--clean', type=int, default=2,
                          '>1 deletes temp data file\n'
                          '>2 deletes temp folder and contents\n'
                          'default is 2')
+parser.add_argument('--version', action='version',
+                    version='%(prog)s v{}'.format(__version__))
 args = parser.parse_args()
 
 
@@ -223,7 +229,9 @@ def data_into_mfile():
     about_content += ['Number of points per time chunk: '
                       '{}'.format(args.stride)]
     about_content += ['Originally processed on {}'.format(datetime.now())]
-    about_content += ['Processed with {}'.format(os.path.basename(__file__))]
+    about_content += ['Processed with '
+                      '{} v{}'.format(os.path.basename(__file__),
+                                      __version__)]
     replacements = dict(varname=args.var_name, data=formatted_data,
                         numcvs=num_of_cvs, stride=args.stride)
     if args.spacing:
