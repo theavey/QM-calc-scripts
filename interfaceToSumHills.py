@@ -33,7 +33,7 @@ import os
 import shutil
 from datetime import datetime
 
-__version__ = '0.2.1'
+__version__ = '0.2.2'
 
 parser = argparse.ArgumentParser(description='Use PLUMED utility to sum '
                                              'HILLS and then put into '
@@ -250,13 +250,13 @@ def data_into_mfile():
     about_content += ['"Originally processed on {}"'.format(datetime.now())]
     about_content += ['"Processed with '
                       '{} v{}"'.format(os.path.basename(__file__),
-                                      __version__)]
-    replacements = dict(varname=args.var_name, data=formatted_data,
-                        numcvs=num_of_cvs, stride=args.stride)
-    replacements['spacing'] = '(Print["getGridSize not currently' \
-                                  'defined"]; $Failed)'
+                                       __version__)]
     about = '{' + ', '.join(about_content) + '}'
-    replacements['about'] = about
+    replacements = dict(varname=args.var_name, data=formatted_data,
+                        numcvs=num_of_cvs, stride=args.stride,
+                        about=about)
+    replacements['spacing'] = '(Print["getGridSize not currently ' \
+                              'defined"]; $Failed)'
     print(replacements.keys())
     with open(args.template, 'r') as template, \
             open(args.output_name, 'w') as output:
