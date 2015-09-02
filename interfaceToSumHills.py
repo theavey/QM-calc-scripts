@@ -33,7 +33,7 @@ import os
 import shutil
 from datetime import datetime
 
-__version__ = 0.1
+__version__ = '0.2.1'
 
 parser = argparse.ArgumentParser(description='Use PLUMED utility to sum '
                                              'HILLS and then put into '
@@ -42,16 +42,10 @@ parser.add_argument('-H', '--hills', default='HILLS',
                     help='name of the HILLS file')
 parser.add_argument('-s', '--stride', default=10000,
                     help='specify the stride for integrating '
-                         'hills file (default 1000)')
-# todo figure out how to get -pi or -3.14,-3.14 to work with --min
-parser.add_argument('-i', '--min', default='',
-                    help='the lower bounds for the grid')
-parser.add_argument('-a', '--max', default='',
-                    help='the upper bounds for the grid')
-parser.add_argument('-b', '--bin', default='',
-                    help='the number of bins for the grid')
-parser.add_argument('-p', '--spacing', default='',
-                    help='The spacing for the grid. Currently unused!')
+                         'hills file (default 10000)')
+parser.add_argument('-a', '--ask', action='store_true',
+                    help='Flag for specifying that it should ask for min, '
+                         'max, bin, and spacing')
 parser.add_argument('-v', '--verbose', action='store_true',
                     help='make script more verbose')
 parser.add_argument('-f', '--folder', default='SumHills',
@@ -109,33 +103,56 @@ def run_plumed_sum_hills():
     command_line += ['--stride', str(args.stride)]
     if args.verbose:
         print('data output stride is {}'.format(args.stride))
-    minim = args.min
-    maxim = args.max
-    # todo add option for spacing instead of bin
-    if args.bin:
-        command_line += ['--bin', str(args.bin)]
-        if args.verbose:
-            print('number of bins is {}'.format(args.bin))
-        if minim or maxim:
-            if not (minim and maxim and args.bin):
-                print('If you give a min or max, you need min, '
-                      'max, and bin')
-                minim = rlinput('min = ', minim)
-                maxim = rlinput('max = ', maxim)
+    if args.ask:
+        print('length of min, max, bin, and spacing should be equal '
+              'to number of CVs\n'
+              'For 2 CVs for example, format as "-pi,-pi"')
+        minim = str(rlinput('min = '))
+        maxim = str(rlinput('max = '))
+        spacing = str(rlinput('grid spacing = '))
+        bins = str(rlinput('num of bins = '))
+        # Check input arguments for PLUMED sum_hills
+        if bins:
+            if minim or maxim:
+                if not (minim and maxim):
+                    print('If you give a min or max, you need min, '
+                          'max, and bin or spacing')
+                    minim = rlinput('min = ', minim)
+                    maxim = rlinput('max = ', maxim)
+        else:
+            if spacing:
+                if minim or maxim:
+                    if not(minim and maxim):
+                        print('If you give a min or max, you need min, '
+                              'max, and bin or spacing')
+                        minim = rlinput('min = ', minim)
+                        maxim = rlinput('max = ', maxim)
+            else:
+                if minim or maxim:
+                    if not(minim and maxim):
+                        print('If you give a min or max, you need min, '
+                              'max, and bin or spacing')
+                        minim = rlinput('min = ', minim)
+                        maxim = rlinput('max = ', maxim)
+                        spacing = rlinput('grid spacing = ')
+                        bins = rlinput('num of bins = ')
+        # Put these arguments into the list of arguments to be submitted
+        if bins:
+            command_line += ['--bin', bins]
             if args.verbose:
-                print('min: {}, max: {}'.format(minim, maxim))
-            command_line += ['--min', str(minim), '--max', str(maxim)]
-    else:
-        if minim or maxim:
-            print('If you give a min or max, you need min, '
-                  'max, and bin')
-            command_line += ['--bin', str(rlinput('bin = '))]
-            if not (minim and maxim):
-                minim = rlinput('min = ', minim)
-                maxim = rlinput('max = ', maxim)
+                print('number of bins is {}'.format(bins))
+        if spacing:
+            command_line += ['--spacing', spacing]
             if args.verbose:
-                print('min: {}, max: {}'.format(minim, maxim))
-            command_line += ['--min', str(minim), '--max', str(maxim)]
+                print('grid spacing: {}'.format(spacing))
+        if minim or maxim:
+            if minim and maxim:
+                command_line += ['--min', str(minim),
+                                 '--max', str(maxim)]
+                if args.verbose:
+                    print('min: {}, max: {}'.format(minim, maxim))
+            else:
+                raise ValueError('Need to have both min and max!')
     command_line_str = ' '.join(command_line)
     print('command line argument is:\n{}'.format(command_line_str))
     print('Running PLUMED sum_hills utility...')
@@ -148,6 +165,8 @@ def run_plumed_sum_hills():
                 log_file.write(line)
                 if args.verbose:
                     print(line, end='')
+            #if proc.returncode != 0:
+    # todo check to make sure it ran okay? maybe subprocess does that already
     print('Done running PLUMED sum_hills utility')
 
 
@@ -186,7 +205,7 @@ def read_plumed_stuff():
             if line.startswith('#'):
                 continue
             num_fields = len(line.split())
-            num_of_cvs = (num_fields - 1) / 2
+            num_of_cvs = (num_fields - 1) / 2.
             if num_of_cvs.is_integer():
                 num_of_cvs = int(num_of_cvs)
             else:
@@ -225,22 +244,17 @@ def data_into_mfile():
     Mathematica"""
     print('Putting data into output file...')
     about_content = []
-    about_content += ['Number of CVs: {}'.format(num_of_cvs)]
-    about_content += ['Number of points per time chunk: '
-                      '{}'.format(args.stride)]
-    about_content += ['Originally processed on {}'.format(datetime.now())]
-    about_content += ['Processed with '
-                      '{} v{}'.format(os.path.basename(__file__),
+    about_content += ['"Number of CVs: {}"'.format(num_of_cvs)]
+    about_content += ['"Number of points per time chunk: '
+                      '{}"'.format(args.stride)]
+    about_content += ['"Originally processed on {}"'.format(datetime.now())]
+    about_content += ['"Processed with '
+                      '{} v{}"'.format(os.path.basename(__file__),
                                       __version__)]
     replacements = dict(varname=args.var_name, data=formatted_data,
                         numcvs=num_of_cvs, stride=args.stride)
-    if args.spacing:
-        # todo change this when spacing option implemented
-        about_content += ['Grid spacing (unused): {}'.format(args.spacing)]
-        replacements['spacing'] = args.spacing
-    else:
-        replacements['spacing'] = '(Print["getGridSize not currently' \
-                                  'defined"]; $Failed'
+    replacements['spacing'] = '(Print["getGridSize not currently' \
+                                  'defined"]; $Failed)'
     about = '{' + ', '.join(about_content) + '}'
     replacements['about'] = about
     print(replacements.keys())
