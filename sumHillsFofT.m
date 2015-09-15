@@ -4,9 +4,9 @@
 (* :Title: sumHillsFofT     *)
 (* :Context: sumHillsFofT`  *)
 (* :Author: Thomas Heavey   *)
-(* :Date: 09/01/15          *)
+(* :Date: 09/15/15          *)
 
-(* :Package Version: 0.3.2.0   *)
+(* :Package Version: 0.3.2.1   *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
@@ -766,19 +766,19 @@ fixPySummedHills[hillsVarName_, opts:OptionsPattern[]] :=
         times
       },
       (* One time point of the data *)
-      dataTP = hillsVarName[getData][[1]];
+      dataTP = hillsVarName[Global`getData][[1]];
       (* Data imported with the Python script will have getData
       assigned but not getMinMax *)
       If[
         Not[
           dataTP[[0]] == List &&
-              hillsVarName[getMinMax] == $Failed],
+              hillsVarName[Global`getMinMax] == $Failed],
         If[OptionValue[silent],
           Return[],
           Print["Seems to be fixed based on getData and getMinMax"];
           Return[]]];
-      numofCVs = hillsVarName[getNumofCVs];
-      minMaxCVs = Table[{Min[Data[[All, i]]], Max[dataTP[[All, i]]]},
+      numofCVs = hillsVarName[Global`getNumofCVs];
+      minMaxCVs = Table[{Min[dataTP[[All, i]]], Max[dataTP[[All, i]]]},
         {i, numofCVs}];
       (* DeleteDuplicates is probably quite slow. Faster way? *)
       grid = Table[DeleteDuplicates[dataTP[[All, i]]], {i, numofCVs}];
@@ -786,9 +786,9 @@ fixPySummedHills[hillsVarName_, opts:OptionsPattern[]] :=
       If[Not[OptionValue[silent]],
         Print["I don't yet know how to get time chunk
         with units and times"]];
-      hillsVarName[getMinMax] = minMaxCVs;
-      hillsVarName[getGridSize] = gridSize;
-      hillsVarName[getGrid] = grid;
+      hillsVarName[Global`getMinMax] = minMaxCVs;
+      hillsVarName[Global`getGridSize] = gridSize;
+      hillsVarName[Global`getGrid] = grid;
       If[Not[OptionValue[silent]],
         Print["Set downvalues for getMinMax, getGridSize, and getGrid"]];
       If[OptionValue[doShare], Share[]];
