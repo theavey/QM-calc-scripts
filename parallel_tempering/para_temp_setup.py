@@ -70,16 +70,19 @@ for i in range(args.number):
             if 'TempGoesHere' in line:
                 line = line.replace('TempGoesHere', str(temp))
             out_file.write(line)
-    # todo add flexibility with names of other files
-    # todo match this with new inputs from above
-    # todo make this define a list
-    command_line = 'grompp_mpi -f {} '.format(mdp_name) + \
-                   '-p ../taddol_3htmf_stilbene_em.top -c ' \
-                   '../major_endo.gro -n ../index.ndx -o ' \
-                   '{} -maxwarn 2'.format(mdp_name.replace('mdp', 'tpr'))
+    command_line = ['grompp_mpi',
+                    '-f', mdp_name,
+                    '-p', args.topology,
+                    '-c', args.structure,
+                    '-n', args.index,
+                    '-o', mdp_name.replace('mdp', 'tpr'),
+                    '-maxwarn', '2']
+    # command_line = 'grompp_mpi -f {} '.format(mdp_name) + \
+    #                '-p ../taddol_3htmf_stilbene_em.top -c ' \
+    #                '../major_endo.gro -n ../index.ndx -o ' \
+    #                '{} -maxwarn 2'.format(mdp_name.replace('mdp', 'tpr'))
     with open('gromacs_compile_output.log', 'w') as log_file:
-        # todo make this not need split because it's a list
-        with subprocess.Popen(command_line.split(),
+        with subprocess.Popen(command_line,
                               stdout=subprocess.PIPE, bufsize=1,
                               universal_newlines=True) as proc:
             for line in proc.stdout:
