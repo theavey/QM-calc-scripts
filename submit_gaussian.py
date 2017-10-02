@@ -149,14 +149,14 @@ for in_name in in_name_list:
     if in_name.endswith('.com'):
         short_name = in_name.rsplit('.', 1)[0]
         if not short_name + '.com' == in_name:
-            raise SyntaxError('problem interpretting file name. ' +
+            raise SyntaxError('problem interpreting file name. ' +
                               'Period in file name?')
         out_name = short_name + '.out'
     elif '.' in in_name:
         short_name = in_name.rsplit('.', 1)[0]
         input_extension = in_name.rsplit('.', 1)[-1]
         if not short_name + '.' + input_extension == in_name:
-            raise SyntaxError('problem interpretting file name. ' +\
+            raise SyntaxError('problem interpreting file name. ' +
                               'Period in file name?')
         out_name = short_name + '.out'
     else:
