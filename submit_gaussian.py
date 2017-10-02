@@ -61,7 +61,7 @@ def rlinput(prompt, prefill=''):
    finally:
       readline.set_startup_hook()
 
-def create_gau_input(coord_name,template):
+def create_gau_input(coord_name, template):
     """This function takes as input a file with a set of molecular
     coordinates (the form should not matter, it will just be copied
     into the next file) and a template file that should be the header
@@ -128,7 +128,7 @@ for in_name in in_name_list:
     if in_name.endswith('.com'):
         short_name = in_name.rsplit('.', 1)[0]
         if not short_name + '.com' == in_name:
-            raise SyntaxError('problem interpretting file name. ' +
+            raise SyntaxError('problem interpreting file name. ' +
                               'Period in file name?')
         out_name = short_name + '.out'
     elif '.' in in_name:
