@@ -169,6 +169,7 @@ def write_sub_script(input_name, num_cores, time, verbose):
 
 
 def submit_scripts(scripts, batch, verbose):
+    # TODO use args.submit
     if batch:
         if input('submit all jobs? ') in yes:
             for script in scripts:
@@ -218,6 +219,8 @@ if __name__ == '__main__':
                         help='create multiple scripts (batch job)')
     parser.add_argument('-x', '--template', default=None,
                         help='template file for creating input from coords')
+    parser.add_argument('-s', '--submit', action='store_true',
+                        help='Automatically submit jobs?')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='make program more verbose')
     args = parser.parse_args()
@@ -234,4 +237,5 @@ if __name__ == '__main__':
         # like to make sure everything input gets a script and all the
         # script names are there to be submitted.
         raise IOError('num scripts dif. from num names given')
+    # TODO use args.submit
     submit_scripts(script_list, args.batch, args.verbose)
