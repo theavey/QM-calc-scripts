@@ -31,31 +31,7 @@ import glob       # Allows referencing file system/file names
 import readline   # Allows easier file input (with tab completion?)
 import subprocess # Allows for submitting commands to the shell
 
-descrip = 'Create and submit a script to run a Gaussian job on SCC'
-
-parser = argparse.ArgumentParser(description=descrip)
-parser.add_argument('in_name',
-                    help='Name of Gaussian input file')
-parser.add_argument('-c', '--numcores', type=int, default=16,
-                    help='Number of cores for job')
-# I should probably check validity of this time request
-# Maybe it doesn't matter so much because it just won't
-# submit the job and it will give quick feedback about that?
-parser.add_argument('-t', '--time',
-                    help='Time required as "hh:mm:ss"',
-                    default='12:00:00')
-parser.add_argument('-b', '--batch', action='store_true',
-                    help='create multiple scripts (batch job)')
-parser.add_argument('-x', '--template', default=None,
-                    help='template file for creating input from coords')
-parser.add_argument('-v', '--verbose', action='store_true',
-                    help='make program more verbose')
-args = parser.parse_args()
-# print('args.time is {}'.format(args.time))
-# print('args.batch is {}'.format(args.batch))
-# print('args.template is {}'.format(args.template))
-# print('args.template is {}'.format(args.template))
-# print('args.verbose is {}'.format(args.verbose))
+yes = ['y', 'yes', '1']
 
 
 # An input function that can prefill in the text entry
@@ -110,9 +86,6 @@ def create_gau_input(coord_name,template):
     return _out_name
 
 
-yes = ['y', 'yes', '1']
-
-
 def get_input_files(base_name, batch):
     _in_name_list = glob.glob(base_name + '*')
     _in_name_list.sort()        # sort files alphanumerically
@@ -132,9 +105,6 @@ def get_input_files(base_name, batch):
     return _in_name_list, batch
 
 
-in_name_list, args.batch = get_input_files(args.in_name, args.batch)
-
-
 def use_template(template, in_names, verbose):
     made_name_list = []
     for in_name in in_names:
@@ -146,10 +116,6 @@ def use_template(template, in_names, verbose):
     _in_name_list.sort()
     _in_name_list.sort(key=len)
     return _in_name_list
-
-
-if args.template:
-    in_name_list = use_template(args.template, in_name_list, args.verbose)
 
 
 def write_sub_script(input_name, num_cores, time, verbose):
@@ -202,18 +168,6 @@ def write_sub_script(input_name, num_cores, time, verbose):
     return _script_name
 
 
-script_list = []
-for in_name in in_name_list:
-    script_name = write_sub_script(in_name, args.num_cores, args.time, args.verbose)
-    script_list.append(script_name)
-
-if not len(script_list) == len(in_name_list):
-    # This should never be the case as far as I know, but I would
-    # like to make sure everything input gets a script and all the
-    # script names are there to be submitted.
-    raise IOError('num scripts dif. from num names given')
-
-
 def submit_scripts(scripts, batch, verbose):
     if batch:
         if input('submit all jobs? ') in yes:
@@ -246,4 +200,38 @@ def submit_scripts(scripts, batch, verbose):
                 print('{} not submitted'.format(scripts))
 
 
-submit_scripts(script_list, args.batch, args.verbose)
+if __name__ == '__main__':
+    description = 'Create and submit a script to run a Gaussian job on SCC'
+
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('in_name',
+                        help='Name of Gaussian input file')
+    parser.add_argument('-c', '--numcores', type=int, default=16,
+                        help='Number of cores for job')
+    # I should probably check validity of this time request
+    # Maybe it doesn't matter so much because it just won't
+    # submit the job and it will give quick feedback about that?
+    parser.add_argument('-t', '--time',
+                        help='Time required as "hh:mm:ss"',
+                        default='12:00:00')
+    parser.add_argument('-b', '--batch', action='store_true',
+                        help='create multiple scripts (batch job)')
+    parser.add_argument('-x', '--template', default=None,
+                        help='template file for creating input from coords')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='make program more verbose')
+    args = parser.parse_args()
+
+    in_name_list, args.batch = get_input_files(args.in_name, args.batch)
+    if args.template:
+        in_name_list = use_template(args.template, in_name_list, args.verbose)
+    script_list = []
+    for in_name in in_name_list:
+        script_name = write_sub_script(in_name, args.num_cores, args.time, args.verbose)
+        script_list.append(script_name)
+    if not len(script_list) == len(in_name_list):
+        # This should never be the case as far as I know, but I would
+        # like to make sure everything input gets a script and all the
+        # script names are there to be submitted.
+        raise IOError('num scripts dif. from num names given')
+    submit_scripts(script_list, args.batch, args.verbose)
