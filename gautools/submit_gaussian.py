@@ -48,6 +48,7 @@ def rlinput(prompt, prefill=''):
 def _dir_and_file(path):
     if '/' in path:
         rel_dir, f_name = path.rsplit('/', 1)
+        rel_dir = rel_dir + '/'
     else:
         rel_dir = ''
         f_name = path
@@ -160,7 +161,7 @@ def write_sub_script(input_name, num_cores, time, verbose):
         script_file.write('#$ -N {}\n'.format(short_name))
         script_file.write('#$ -j y\n')
         script_file.write('#$ -o {}.log\n\n'.format(short_name))
-        script_file.write('INPUTFILE={}\n'.format(input_name))
+        script_file.write('INPUTFILE={}\n'.format(file_name))
         script_file.write('OUTPUTFILE={}\n\n'.format(out_name))
         script_file.write('CURRENTDIR=`pwd`\n')
         script_file.write('SCRATCHDIR=/scratch/$USER\n')
