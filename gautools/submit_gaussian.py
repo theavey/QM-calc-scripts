@@ -119,26 +119,31 @@ def use_template(template, in_names, verbose):
 
 
 def write_sub_script(input_name, num_cores, time, verbose):
-    if input_name.endswith('.com'):
-        short_name = input_name.rsplit('.', 1)[0]
-        if not short_name + '.com' == input_name:
+    if '/' in input_name:
+        rel_dir, file_name = input_name.rsplit('/', 1)
+    else:
+        rel_dir = './'
+        file_name = input_name
+    if file_name.endswith('.com'):
+        short_name = file_name.rsplit('.', 1)[0]
+        if not short_name + '.com' == file_name:
             raise SyntaxError('problem interpreting file name. ' +
                               'Period in file name?')
         out_name = short_name + '.out'
-    elif '.' in input_name:
-        short_name = input_name.rsplit('.', 1)[0]
-        input_extension = input_name.rsplit('.', 1)[-1]
-        if not short_name + '.' + input_extension == input_name:
+    elif '.' in file_name:
+        short_name = file_name.rsplit('.', 1)[0]
+        input_extension = file_name.rsplit('.', 1)[-1]
+        if not short_name + '.' + input_extension == file_name:
             raise SyntaxError('problem interpreting file name. ' +
                               'Period in file name?')
         out_name = short_name + '.out'
     else:
-        short_name = input_name
-        input_name = short_name + '.com'
-        print('Assuming input file is {}'.format(input_name))
+        short_name = file_name
+        file_name = short_name + '.com'
+        print('Assuming input file is {}'.format(file_name))
         out_name = short_name + '.out'
 
-    _script_name = 'submit' + short_name + '.sh'
+    _script_name = rel_dir + 'submit' + short_name + '.sh'
 
     with open(_script_name, 'w') as script_file:
         script_file.write('#!/bin/sh \n\n')
@@ -164,7 +169,7 @@ def write_sub_script(input_name, num_cores, time, verbose):
         script_file.write('echo output was copied to $CURRENTDIR\n\n')
 
     if verbose:
-        print('script written to {}'.format(script_name))
+        print('script written to {}'.format(_script_name))
     return _script_name
 
 
