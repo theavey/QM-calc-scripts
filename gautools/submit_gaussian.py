@@ -30,6 +30,7 @@ import argparse   # For parsing commandline arguments
 import glob       # Allows referencing file system/file names
 import readline   # Allows easier file input (with tab completion?)
 import subprocess # Allows for submitting commands to the shell
+from thtools import cd
 
 yes = ['y', 'yes', '1']
 
@@ -42,6 +43,15 @@ def rlinput(prompt, prefill=''):
         return input(prompt)
     finally:
         readline.set_startup_hook()
+
+
+def _dir_and_file(path):
+    if '/' in path:
+        rel_dir, f_name = path.rsplit('/', 1)
+    else:
+        rel_dir = ''
+        f_name = path
+    return rel_dir, f_name
 
 
 def create_gau_input(coord_name,template):
@@ -119,11 +129,7 @@ def use_template(template, in_names, verbose):
 
 
 def write_sub_script(input_name, num_cores, time, verbose):
-    if '/' in input_name:
-        rel_dir, file_name = input_name.rsplit('/', 1)
-    else:
-        rel_dir = './'
-        file_name = input_name
+    rel_dir, file_name = _dir_and_file(input_name)
     if file_name.endswith('.com'):
         short_name = file_name.rsplit('.', 1)[0]
         if not short_name + '.com' == file_name:
@@ -174,36 +180,46 @@ def write_sub_script(input_name, num_cores, time, verbose):
 
 
 def submit_scripts(scripts, batch, submit, verbose):
-    # todo return formatted job number/name
+    outputs = []
     if batch:
         if submit or input('submit all jobs? ') in yes:
             for script in scripts:
-                cl = 'qsub {}'.format(script)
-                # Don't really know how this works. Copied from
-                # http://stackoverflow.com/questions/4256107/
-                # running-bash-commands-in-python
-                process = subprocess.Popen(cl.split(),
-                                           stdout=subprocess.PIPE,
-                                           universal_newlines=True)
-                output = process.communicate()[0]
-                print(output)
+                rd, f = _dir_and_file(script)
+                with cd(rd, ignore_blank=True):
+                    cl = ['qsub', f]
+                    # Don't really know how this works. Copied from
+                    # http://stackoverflow.com/questions/4256107/
+                    # running-bash-commands-in-python
+                    process = subprocess.Popen(cl,
+                                               stdout=subprocess.PIPE,
+                                               universal_newlines=True)
+                    output = process.communicate()[0]
+                if verbose:
+                    print(output)
+                outputs.append(output)
         else:
             if verbose:
                 print('No jobs submitted, but scripts created')
     else:
         if submit or input('submit job {}? '.format(scripts[0])) in yes:
-            cl = 'qsub {}'.format(scripts[0])
-            # Don't really know how this works. Copied from
-            # http://stackoverflow.com/questions/4256107/
-            # running-bash-commands-in-python
-            process = subprocess.Popen(cl.split(),
-                                       stdout=subprocess.PIPE,
-                                       universal_newlines=True)
-            output = process.communicate()[0]
-            print(output)
+            rd, f = _dir_and_file(scripts[0])
+            with cd(rd, ignore_blank=True):
+                cl = ['qsub', f]
+                # Don't really know how this works. Copied from
+                # http://stackoverflow.com/questions/4256107/
+                # running-bash-commands-in-python
+                process = subprocess.Popen(cl,
+                                           stdout=subprocess.PIPE,
+                                           universal_newlines=True)
+                output = process.communicate()[0]
+            if verbose:
+                print(output)
+            outputs.append(output)
         else:
             if verbose:
                 print('{} not submitted'.format(scripts))
+    _job_info = [' '.join(output.split(' ')[2:4]) for output in outputs]
+    return _job_info
 
 
 if __name__ == '__main__':
@@ -228,6 +244,8 @@ if __name__ == '__main__':
                         help='Automatically submit jobs?')
     parser.add_argument('-v', '--verbose', action='store_true',
                         help='make program more verbose')
+    parser.add_argument('-j', '--nojobinfo', action='store_false',
+                        help='Do not return the submitted job information')
     args = parser.parse_args()
 
     in_name_list, args.batch = get_input_files(args.in_name, args.batch)
@@ -242,6 +260,9 @@ if __name__ == '__main__':
         # like to make sure everything input gets a script and all the
         # script names are there to be submitted.
         raise IOError('num scripts dif. from num names given')
-    submit_scripts(script_list, args.batch, args.submit, args.verbose)
+    job_info = submit_scripts(script_list, args.batch, args.submit, args.verbose)
+    if job_info and args.nojobinfo:
+        for job in job_info:
+            print(job)
     if args.verbose:
         print('Done. Completed normally.')
