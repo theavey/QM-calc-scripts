@@ -168,10 +168,9 @@ def write_sub_script(input_name, num_cores, time, verbose):
     return _script_name
 
 
-def submit_scripts(scripts, batch, verbose):
-    # TODO use args.submit
+def submit_scripts(scripts, batch, submit, verbose):
     if batch:
-        if input('submit all jobs? ') in yes:
+        if submit or input('submit all jobs? ') in yes:
             for script in scripts:
                 cl = 'qsub {}'.format(script)
                 # Don't really know how this works. Copied from
@@ -186,7 +185,7 @@ def submit_scripts(scripts, batch, verbose):
             if verbose:
                 print('No jobs submitted, but scripts created')
     else:
-        if input('submit job {}? '.format(scripts[0])) in yes:
+        if submit or input('submit job {}? '.format(scripts[0])) in yes:
             cl = 'qsub {}'.format(scripts[0])
             # Don't really know how this works. Copied from
             # http://stackoverflow.com/questions/4256107/
@@ -237,5 +236,6 @@ if __name__ == '__main__':
         # like to make sure everything input gets a script and all the
         # script names are there to be submitted.
         raise IOError('num scripts dif. from num names given')
-    # TODO use args.submit
-    submit_scripts(script_list, args.batch, args.verbose)
+    submit_scripts(script_list, args.batch, args.submit, args.verbose)
+    if args.verbose:
+        print('Done. Completed normally.')
