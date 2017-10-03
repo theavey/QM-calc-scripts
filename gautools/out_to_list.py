@@ -35,10 +35,12 @@
 # This is written to work with python 3.4 because it should be good to
 # be working on the newest version of python.
 
-import re         # RegEx package for sorting data
-import glob       # Allows referencing file system/file names
-import argparse   # For parsing commandline arguments
-import geomRegex  # Pulls out and returns all geometries
+import argparse  # For parsing commandline arguments
+import glob  # Allows referencing file system/file names
+import re  # RegEx package for sorting data
+
+from gautools import geomRegex
+
 
 # Really should adapt to use argparse for parsing command line
 # arguments. see https://docs.python.org/2/library/argparse.html
