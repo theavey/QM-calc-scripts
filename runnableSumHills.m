@@ -33,9 +33,9 @@ LaunchKernels[1];
 (* :Title: sumHillsFofT     *)
 (* :Context:                *)
 (* :Author: Thomas Heavey   *)
-(* :Date: 7/29/15           *)
+(* :Date: 8/24/15           *)
 
-(* :Package Version: 0.3.0.2   *)
+(* :Package Version: 0.3.1.0   *)
 (* :Mathematica Version: 9     *)
 (* :Copyright: (c) 2015 Thomas Heavey *)
 (* :Keywords:                  *)
@@ -45,7 +45,8 @@ LaunchKernels[1];
 Options[sumHills] =
     {
       GridSize -> 0.1,
-      TimeChunkSize -> 1000, (* 1000 is chunking to tenths of nanoseconds *)
+    (* 1000 is chunking to tenths of nanoseconds for our original default parameters *)
+      TimeChunkSize -> 1000,
       name -> Automatic
     };
 
@@ -68,7 +69,8 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
         partSpec,
         compAccum,
         compAddGrid,
-        compTimeChunkFunc
+        compTimeChunkFunc,
+        periodic
       },
     (* Assign name for output of data *)
       variableName = If[
@@ -81,6 +83,10 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
       (* Import data, checking for comments and empty elements*)
       Print["Importing data from ", hillsFileName];
       rawData = DeleteCases[#, {_String, __} | {}]& @ Import[hillsFileName, "Table"];
+      If[rawData == $Failed,
+        Print[
+          StringForm["!! Data import failed!! Incorrect file name? Given ``", hillsFileName]];
+        Return[$Failed]];
       Print["Data imported successfully"];
       numofCVs = (Length[rawData[[1]]] - 3) / 2;
       Print["Number of CVs found in HILLS file: ", numofCVs];
@@ -105,8 +111,19 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
       Table[If[gridLengthCVs[[i]] != Length[gridCVs[[i]]],
         Print[StringForm[sumHills::griderror, gridLengthCVs[[i]], Length[gridCVs[[i]]], i]]],
         {i, numofCVs}];
+      (* Test periodicity by summing the bounds for each CV.
+         If the sum of the min and max of a CV is about 0 (in the range -0.1 to 0.1),
+         this will return True.
+         Seem like it will only not work if tiny CVs are used, or something else that goes
+         negative besides periodic CVs, but I can't think of anything like that currently.
+         I'm sure it's possible though because of the crazy many ways you can define CVs
+         with PLUMED. *)
+      periodic = Table[
+        IntervalMemberQ[Interval[{-0.1, 0.1}], Total[minMaxCVs[[i]]]],
+        {i, numofCVs}];
       Print["Found grid parameters:"];
       Table[Print[StringForm["  Collective variable `` range: `` Ang or Rad", i, minMaxCVs[[i]]]], {i, numofCVs}];
+      Table[Print[StringForm["  Is CV `` periodic? ``", i, periodic[[i]]]], {i, numofCVs}];
       Print[StringForm["  Grid dimensions: ``", gridLengthCVs]];
       Print[StringForm["  Size of time chunks: `` ps", timeChunkwUnits]];
       (* Create gaussian matrix that will be translated as needed later. *)
@@ -114,57 +131,92 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
         {gridLengthCVs,
           sigmaCVs / gridSize},
         Method -> "Gaussian"]
-          * 2 Pi Apply[Times, sigmaCVs] / gridSize^numofCVs,
+          * ((2 Pi)^(numofCVs / 2)) Apply[Times, sigmaCVs] / gridSize^numofCVs,
         10^-100];
-      (* Function that will first find the offset of the current point
-      to the center of gaussian matrix scaled to the grid.
-      Then, it will rotate the center to that point using RotateLeft.
-      Finally, it will crop the matrix to the size of the grid. *)
+      (* grid in all dimensions. Expected to throw an irrelevant error,
+      which is why it's wrapped in Quiet. *)
       gridAllD = Quiet[Array[
         Evaluate[Table[gridCVs[[i, Slot[i]]], {i, numofCVs}]] &,
         gridLengthCVs],
         {Part::pkspec1, Part::pspec}];
       (* Blank filler that is a list the same length as rawData elements *)
-      filler = Table[0., Evaluate[(3 + 2 * numofCVs)]];
+      filler = Table[0., {Evaluate[(3 + 2 * numofCVs)]}];
       (* Makes a list the length of the number of points in gaussianMatrix,
         then makes it into the same shape as gaussianMatrix, then takes the
-        part that we care about, Flattens it. This is the parts of the
+        part that we care about, and Flattens it. This is the parts of the
         Flattened summed gaussian matrices we care about. Use as a Part
         specification. *)
       partSpec =
           Flatten[ArrayReshape[
             Range[Times @@ (2 * gridLengthCVs + 1)], (2 * gridLengthCVs +
                 1)][[## & @@ Table[1 ;; gridLengthCVs[[i]], {i, numofCVs}]]]];
-      (* Compiled Accumulate function *)
-      compAccum = Compile[{{totaledChunks, _Real, 2}},
-        Accumulate[totaledChunks],
-        CompilationTarget -> "C"];
       (* Compiled function to act on time chunks.
       First, moves gaussianMatrix based on the CVs read from the
       rawData. Then scales the gaussian based on the height
       (second to last column of raw data). Next, totals all the
       gaussians within the time chunk, flattens the totaled gaussians,
       and takes the relevant part based on partSpec defined above.
-      Being Listable, it can work on the time chunks in separately
+      Being Listable, it can work on the time chunks separately
       (in parallel if that option is added). *)
-      compTimeChunkFunc =
-          With[{numofCVs = numofCVs, gridLengthCVs = gridLengthCVs,
-            gaussianMatrix = gaussianMatrix, minMaxCVs = minMaxCVs,
-            gridSize = gridSize, partSpec = partSpec},
-            Compile[{{chunkedData, _Real, 2}},
-              Flatten[Total[
-              (* Move the gaussian matrix (scaled appropriatly by the height
+      (* Because this did not work on periodic systems (because
+      it didn't wrap around the edges, obviously), I know try to
+      check for that. If it's not periodic, use the old definition.
+      If at least one of them is periodic, do something different*)
+      If[Not[Or @@ periodic],
+        Print["Using function for non-periodic CVs"];
+        compTimeChunkFunc =
+            With[{numofCVs = numofCVs, gridLengthCVs = gridLengthCVs,
+              gaussianMatrix = gaussianMatrix, minMaxCVs = minMaxCVs,
+              gridSize = gridSize, partSpec = partSpec},
+              Compile[{{chunkedData, _Real, 2}},
+                Flatten[Total[
+                (* Move the gaussian matrix (scaled appropriatly by the height
                  which is the second to last column of the rawData) so that it is
                  centered at the correct coordinates. *)
-                RotateLeft[-gaussianMatrix * #[[-2]],
-                  Round[Table[
-                    gridLengthCVs[[i]] - (#[[1 + i]] - minMaxCVs[[i, 1]])/
-                        gridSize, {i, numofCVs}]]]
-                    & /@ chunkedData]][[partSpec]],
-              RuntimeAttributes -> {Listable},
-              CompilationTarget -> "C"]];
+                  RotateLeft[-gaussianMatrix * #[[-2]],
+                    Round[Table[
+                      gridLengthCVs[[i]] - (#[[1 + i]] - minMaxCVs[[i, 1]])/
+                          gridSize, {i, numofCVs}]]]
+                      & /@ chunkedData]][[partSpec]],
+                RuntimeAttributes -> {Listable},
+                Parallelization -> True,
+                CompilationTarget -> "C"]],
+        If[numofCVs == 1,
+          Print["Using function for 1 periodic CV"];
+          compTimeChunkFunc =
+              With[{numofCVs = numofCVs, gridLengthCV = gridLengthCVs[[1]],
+                gaussianMatrix = gaussianMatrix, minMaxCVs = minMaxCVs,
+                gridSize = gridSize, partSpec = partSpec},
+                Compile[{{chunkedData, _Real, 2}},
+                  Total[Partition[
+                    Flatten[Total[
+                    (* Move the gaussian matrix (scaled appropriatly by the height
+                      which is the second to last column of the rawData) so that it is
+                      centered at the correct coordinates. *)
+                      RotateLeft[-gaussianMatrix * #[[-2]],
+                        Round[
+                          gridLengthCV - (#[[2]] - minMaxCVs[[1, 1]])/
+                              gridSize]]
+                          & /@ chunkedData
+                    ]],
+                    gridLengthCV, gridLengthCV, {1, 1}, 0
+                  ]],
+                  {{Partition[__], _Real, 2}},
+                  RuntimeAttributes -> {Listable},
+                (*Parallelization -> True,*)
+                  CompilationTarget -> "C"]],
+          Print[StringForm["!! I don't know how to deal with this data! \
+        The number of CVs found was ``, and the periodicity found was ``",
+            numofCVs, periodic]];
+          Return[$Failed]
+        ]
+      ];
       (* Flattened full dimensional grid *)
       flatGridAllD = Flatten[gridAllD, numofCVs - 1];
+      (* Compiled Accumulate function *)
+      compAccum = Compile[{{totaledChunks, _Real, 2}},
+        Accumulate[totaledChunks],
+        CompilationTarget -> "C"];
       (* Compiled function to add grid to height data.
       Being listable, it works on time chunks separately,
       so it can be run in parallel if that option is added. *)
@@ -172,6 +224,7 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
         Compile[{{accumedData, _Real, 1}},
           MapThread[Append, {flatGrid, accumedData}],
           RuntimeAttributes -> {Listable},
+          Parallelization -> True,
           CompilationTarget -> "C"]];
       processData =
           Function[data,
@@ -236,7 +289,7 @@ sumHills[hillsFileName_, OptionsPattern[]]:=
       Evaluate[variableName] /: Plot[Evaluate[variableName], "diff"] :=
           plotHillsDiff[Evaluate[variableName]];
       variableName
-    ]
+    ] (* Don't put a semicolon here *)
 
 sumHills::griderror = "gridLength (`1`) does not match the length of generated grid (`2`) for CV `3`";
 
