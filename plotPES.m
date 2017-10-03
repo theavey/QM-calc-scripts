@@ -87,6 +87,7 @@ makePlotPES[data_, opts:OptionsPattern[{makePlotPES, ListLinePlot, ListPlot3D}]]
         ]];
 		midpoint = Ceiling[numPoints / 2];
 		rangeSize = (Min[plotdata] - Max[plotdata])/10;
+		(* Should use MinMax[plotdata, Scaled[0.1]] *)
 		range = {Min[plotdata] + rangeSize, Max[plotdata] - rangeSize};
 		debugPrint["making plot with options"];
 		debugPrint[FilterRules[{opts}, Options[ListLinePlot]]];
