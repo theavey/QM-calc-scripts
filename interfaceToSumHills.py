@@ -255,6 +255,7 @@ def data_into_mfile():
     replacements = dict(varname=args.var_name, data=formatted_data,
                         numcvs=num_of_cvs, stride=args.stride,
                         about=about)
+    # Below shouldn't be needed, but leaving for backward compatibility.
     replacements['spacing'] = '(Print["getGridSize not currently ' \
                               'defined"]; $Failed)'
     print(replacements.keys())
