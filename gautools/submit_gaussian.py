@@ -140,7 +140,7 @@ def write_sub_script(input_name, num_cores, time, verbose):
 
     _script_name = 'submit' + short_name + '.sh'
 
-    with open(script_name, 'w') as script_file:
+    with open(_script_name, 'w') as script_file:
         script_file.write('#!/bin/sh \n\n')
         script_file.write('#$ -pe omp {}\n'.format(num_cores))
         script_file.write('#$ -M theavey@bu.edu\n')
@@ -169,6 +169,7 @@ def write_sub_script(input_name, num_cores, time, verbose):
 
 
 def submit_scripts(scripts, batch, submit, verbose):
+    # todo return formatted job number/name
     if batch:
         if submit or input('submit all jobs? ') in yes:
             for script in scripts:
