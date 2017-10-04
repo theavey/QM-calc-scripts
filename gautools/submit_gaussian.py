@@ -129,7 +129,7 @@ def use_template(template, in_names, verbose):
     return _in_name_list
 
 
-def write_sub_script(input_name, num_cores, time, verbose):
+def write_sub_script(input_name, num_cores, time, verbose, g_executable='g09'):
     rel_dir, file_name = _dir_and_file(input_name)
     if file_name.endswith('.com'):
         short_name = file_name.rsplit('.', 1)[0]
