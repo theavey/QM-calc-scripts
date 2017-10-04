@@ -129,7 +129,7 @@ def use_template(template, in_names, verbose):
     return _in_name_list
 
 
-def write_sub_script(input_name, num_cores, time, verbose):
+def write_sub_script(input_name, num_cores, time, verbose, g_executable='g09'):
     rel_dir, file_name = _dir_and_file(input_name)
     if file_name.endswith('.com'):
         short_name = file_name.rsplit('.', 1)[0]
@@ -170,7 +170,7 @@ def write_sub_script(input_name, num_cores, time, verbose):
         script_file.write('cp $CURRENTDIR/$INPUTFILE .\n\n')
         script_file.write('echo About to run g09 in /net/`'
                           'hostname -s`$SCRATCHDIR\n\n')
-        script_file.write('g09 <$INPUTFILE > $OUTPUTFILE\n\n')
+        script_file.write('{} <$INPUTFILE > $OUTPUTFILE\n\n'.format(g_executable))
         script_file.write('cp $OUTPUTFILE $CURRENTDIR/.\n\n')
         script_file.write('echo ran in /net/`hostname -s`$SCRATCHDIR\n')
         script_file.write('echo output was copied to $CURRENTDIR\n\n')
