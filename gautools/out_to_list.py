@@ -39,7 +39,7 @@ import argparse  # For parsing commandline arguments
 import glob  # Allows referencing file system/file names
 import re  # RegEx package for sorting data
 
-from gautools import geomRegex
+from . import geomRegex
 
 
 # Really should adapt to use argparse for parsing command line
@@ -53,9 +53,9 @@ def outtolist():
     """This function reads command line arguments (use -h for help)
     to take output from quantum chemistry calculations and put useful
     data such as energy and geometries into (a) separate file(s)."""
-    descrip = ('This function takes a base file name for output files and'+
-        ' makes a file basename_energies that is a list of the energies ' +
-        'from the the read output files.')
+    descrip = ('This function takes a base file name for output files and makes'
+               ' a file basename_energies that is a list of the energies from '
+               'the the read output files.')
 
     parser = argparse.ArgumentParser(description=descrip)
     parser.add_argument('base_name', help='base name of files to read')
@@ -66,11 +66,11 @@ def outtolist():
                               'are interpreted)'))
     parser.add_argument('-s', '--singlefile', action='store_true',
                         help=('use if output is single file with '
-                             'multiple geometries'))
+                              'multiple geometries'))
     parser.add_argument('-g', '--geometries', action='count', default=0,
                         help=('Flag for creating file of geometries in '
-                        'XYZ style format.'
-                        '\n-g for stationary points, -gg for all.'))
+                              'XYZ style format.'
+                              '\n-g for stationary points, -gg for all.'))
     # todo add option for saving all energies -e?
     # todo add flag for gaussian vs. qchem?
     # maybe to separate file with different name? Probably not
@@ -102,8 +102,8 @@ def outtolist():
             if input('Get energies from multiple output files?') in yes:
                 args.singlefile = False
             else:
-                raise SyntaxError('Okay, well files that '
-                      'matched your input are {}'.format(in_name_list))
+                raise SyntaxError('Okay, well files that matched your input '
+                                  'are {}'.format(in_name_list))
     # Print some stuff if not a single file. Note, not "else" because
     # I might set singlefile to false above.
     if not args.singlefile:
@@ -113,7 +113,7 @@ def outtolist():
     # will be difficult/require changes, but would be good, I think
     if args.geometries == 1:
         # todo Need to figure this out obvs!!!!!!
-        pass
+        raise NotImplementedError('Not able to pull out single geom yet.')
     # Collect all geometries from files for -gg (or more)
     if args.geometries > 1:
         geoms_out_name = base_name + '_allgeoms'
