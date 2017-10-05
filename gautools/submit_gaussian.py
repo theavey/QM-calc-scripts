@@ -130,9 +130,8 @@ def use_template(template, in_names, verbose):
 
 
 def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
-                     mem='128', executable='g09'):
+                     mem='125', executable='g09'):
     # todo write docstring
-    # todo add defaults
     rel_dir, file_name = _dir_and_file(input_name)
     if file_name.endswith('.com'):
         short_name = file_name.rsplit('.', 1)[0]
