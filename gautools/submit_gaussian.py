@@ -28,6 +28,7 @@ from __future__ import print_function
 
 import argparse   # For parsing commandline arguments
 import glob       # Allows referencing file system/file names
+import re
 import readline   # Allows easier file input (with tab completion?)
 import subprocess # Allows for submitting commands to the shell
 from thtools import cd
@@ -151,7 +152,9 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         file_name = short_name + '.com'
         print('Assuming input file is {}'.format(file_name))
         out_name = short_name + '.out'
-
+    job_name = re.match(r'.*?([a-zA-Z].*)', short_name).group(1)
+    if len(job_name) == 0:
+        job_name = 'default'
     _script_name = rel_dir + 'submit' + short_name + '.sh'
 
     with open(_script_name, 'w') as script_file:
@@ -161,7 +164,7 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         script_file.write('#$ -m eas\n')
         script_file.write('#$ -l h_rt={}\n'.format(time))
         script_file.write('#$ -l mem_total={}G\n'.format(mem))
-        script_file.write('#$ -N {}\n'.format(short_name))
+        script_file.write('#$ -N {}\n'.format(job_name))
         script_file.write('#$ -j y\n')
         script_file.write('#$ -o {}.log\n\n'.format(short_name))
         script_file.write('INPUTFILE={}\n'.format(file_name))
@@ -260,8 +263,11 @@ if __name__ == '__main__':
         in_name_list = use_template(args.template, in_name_list, args.verbose)
     script_list = []
     for in_name in in_name_list:
-        script_name = write_sub_script(in_name, args.numcores, args.time,
-                                       args.verbose, executable=args.executable)
+        script_name = write_sub_script(input_name=in_name,
+                                       num_cores=args.numcores,
+                                       time=args.time,
+                                       verbose=args.verbose,
+                                       executable=args.executable)
         script_list.append(script_name)
     if not len(script_list) == len(in_name_list):
         # This should never be the case as far as I know, but I would
