@@ -261,7 +261,7 @@ if __name__ == '__main__':
     script_list = []
     for in_name in in_name_list:
         script_name = write_sub_script(in_name, args.numcores, args.time,
-                                       args.verbose)
+                                       args.verbose, executable=args.executable)
         script_list.append(script_name)
     if not len(script_list) == len(in_name_list):
         # This should never be the case as far as I know, but I would
