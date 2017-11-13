@@ -129,7 +129,9 @@ def use_template(template, in_names, verbose):
     return _in_name_list
 
 
-def write_sub_script(input_name, num_cores, time, verbose, g_executable='g09'):
+def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
+                     mem='125', executable='g09'):
+    # todo write docstring
     rel_dir, file_name = _dir_and_file(input_name)
     if file_name.endswith('.com'):
         short_name = file_name.rsplit('.', 1)[0]
@@ -158,6 +160,7 @@ def write_sub_script(input_name, num_cores, time, verbose, g_executable='g09'):
         script_file.write('#$ -M theavey@bu.edu\n')
         script_file.write('#$ -m eas\n')
         script_file.write('#$ -l h_rt={}\n'.format(time))
+        script_file.write('#$ -l mem_total={}G\n'.format(mem))
         script_file.write('#$ -N {}\n'.format(short_name))
         script_file.write('#$ -j y\n')
         script_file.write('#$ -o {}.log\n\n'.format(short_name))
@@ -170,8 +173,8 @@ def write_sub_script(input_name, num_cores, time, verbose, g_executable='g09'):
         script_file.write('cp $CURRENTDIR/$INPUTFILE .\n\n')
         script_file.write('echo About to run g09 in /net/`'
                           'hostname -s`$SCRATCHDIR\n\n')
-        script_file.write('{} <$INPUTFILE > $OUTPUTFILE\n\n'.format(
-            g_executable))
+        script_file.write('{} <$INPUTFILE > $OUTPUTFILE'.format(executable))
+        script_file.write('\n\n')
         script_file.write('cp $OUTPUTFILE $CURRENTDIR/.\n\n')
         script_file.write('echo ran in /net/`hostname -s`$SCRATCHDIR\n')
         script_file.write('echo output was copied to $CURRENTDIR\n\n')
