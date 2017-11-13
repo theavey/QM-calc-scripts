@@ -241,6 +241,8 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--time',
                         help='Time required as "hh:mm:ss"',
                         default='12:00:00')
+    parser.add_argument('-e', '--executable', type=str, default='g09',
+                        help='name of executable to run')
     parser.add_argument('-b', '--batch', action='store_true',
                         help='create multiple scripts (batch job)')
     parser.add_argument('-x', '--template', default=None,
@@ -258,7 +260,7 @@ if __name__ == '__main__':
         in_name_list = use_template(args.template, in_name_list, args.verbose)
     script_list = []
     for in_name in in_name_list:
-        script_name = write_sub_script(in_name, args.num_cores, args.time,
+        script_name = write_sub_script(in_name, args.numcores, args.time,
                                        args.verbose)
         script_list.append(script_name)
     if not len(script_list) == len(in_name_list):
