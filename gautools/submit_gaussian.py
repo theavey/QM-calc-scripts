@@ -55,13 +55,13 @@ def _dir_and_file(path):
     return rel_dir, f_name
 
 
-def create_gau_input(coord_name,template):
+def create_gau_input(coord_name, template):
     """This function takes as input a file with a set of molecular
     coordinates (the form should not matter, it will just be copied
     into the next file) and a template file that should be the header
     for the desired calculation (including charge and multiplicity),
-    returns nothing, but creates a Gaussian input file ending with
-    '.com' """
+    returns the name of the file, and creates a Gaussian input file ending
+    with '.com' """
     print('Creating Gaussian input file...')
     _out_name = coord_name.rsplit('.', 1)[0] + '.com'
     with open(_out_name, 'w') as out_file:
@@ -170,7 +170,8 @@ def write_sub_script(input_name, num_cores, time, verbose, g_executable='g09'):
         script_file.write('cp $CURRENTDIR/$INPUTFILE .\n\n')
         script_file.write('echo About to run g09 in /net/`'
                           'hostname -s`$SCRATCHDIR\n\n')
-        script_file.write('{} <$INPUTFILE > $OUTPUTFILE\n\n'.format(g_executable))
+        script_file.write('{} <$INPUTFILE > $OUTPUTFILE\n\n'.format(
+            g_executable))
         script_file.write('cp $OUTPUTFILE $CURRENTDIR/.\n\n')
         script_file.write('echo ran in /net/`hostname -s`$SCRATCHDIR\n')
         script_file.write('echo output was copied to $CURRENTDIR\n\n')
@@ -254,14 +255,16 @@ if __name__ == '__main__':
         in_name_list = use_template(args.template, in_name_list, args.verbose)
     script_list = []
     for in_name in in_name_list:
-        script_name = write_sub_script(in_name, args.num_cores, args.time, args.verbose)
+        script_name = write_sub_script(in_name, args.num_cores, args.time,
+                                       args.verbose)
         script_list.append(script_name)
     if not len(script_list) == len(in_name_list):
         # This should never be the case as far as I know, but I would
         # like to make sure everything input gets a script and all the
         # script names are there to be submitted.
         raise IOError('num scripts dif. from num names given')
-    job_info = submit_scripts(script_list, args.batch, args.submit, args.verbose)
+    job_info = submit_scripts(script_list, args.batch, args.submit,
+                              args.verbose)
     if job_info and args.nojobinfo:
         for job in job_info:
             print(job)
