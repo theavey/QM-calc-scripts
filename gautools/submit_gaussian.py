@@ -174,7 +174,7 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         script_file.write('mkdir -p $SCRATCHDIR\n\n')
         script_file.write('cd $SCRATCHDIR\n\n')
         script_file.write('cp $CURRENTDIR/$INPUTFILE .\n\n')
-        script_file.write('echo About to run g09 in /net/`'
+        script_file.write('echo About to run {} in /net/`'.format(executable) +
                           'hostname -s`$SCRATCHDIR\n\n')
         script_file.write('{} <$INPUTFILE > $OUTPUTFILE'.format(executable))
         script_file.write('\n\n')
