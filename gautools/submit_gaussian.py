@@ -56,25 +56,26 @@ def _dir_and_file(path):
     return rel_dir, f_name
 
 
-def create_gau_input(coord_name, template):
+def create_gau_input(coord_name, template, verbose=True):
     """This function takes as input a file with a set of molecular
     coordinates (the form should not matter, it will just be copied
     into the next file) and a template file that should be the header
     for the desired calculation (including charge and multiplicity),
     returns the name of the file, and creates a Gaussian input file ending
     with '.com' """
-    print('Creating Gaussian input file...')
+    if verbose:
+        print('Creating Gaussian input file...')
     _out_name = coord_name.rsplit('.', 1)[0] + '.com'
     with open(_out_name, 'w') as out_file:
         with open(template, 'r') as templ_file:
-            if args.verbose:
+            if verbose:
                 print('opened {}'.format(template))
             for line in templ_file:
                 out_file.write(line)
             if '\n' not in line:
                 out_file.write('\n')
         with open(coord_name, 'r') as in_file:
-            if args.verbose:
+            if verbose:
                 print('opened {}'.format(coord_name))
             for i, line in enumerate(in_file):
                 if i < 2:
@@ -93,7 +94,7 @@ def create_gau_input(coord_name, template):
                 # else:
                 out_file.write(line)
         out_file.write('\n\n\n')
-    if args.verbose:
+    if verbose:
         print('created Gaussian input file {}'.format(_out_name))
     return _out_name
 
@@ -120,7 +121,7 @@ def get_input_files(base_name, batch):
 def use_template(template, in_names, verbose):
     made_name_list = []
     for in_name in in_names:
-        out_name = create_gau_input(in_name, template)
+        out_name = create_gau_input(in_name, template, verbose=verbose)
         made_name_list.append(out_name)
         if verbose:
             print('Added {} to files to possibly submit.'.format(out_name))
