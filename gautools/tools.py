@@ -25,6 +25,7 @@ A set of tools for working with computational chemistry files and such
 #                                                                      #
 ########################################################################
 
+from six import string_types
 from paratemp import copy_no_overwrite
 
 
@@ -74,3 +75,93 @@ def fix_atom_names_xyz(xyz, dry_run=False, return_list=False):
                 print(line)
     if return_list:
         return lines
+
+
+def use_gen_template(out_file, xyz, job_name='default job name',
+                     checkpoint='checkpoint.cpt',
+                     nproc=16, mem=125,
+                     opt='opt', td=False,
+                     func='wb97xd', basis='6-31g(d)',
+                     charg_mult='0 1',
+                     template='/projectnb/nonadmd/theavey'
+                              '/qm-basics/templ-gen.txt'):
+    """
+    Use general template file to write Gaussian input file
+
+    :type out_file: str or TextIOBase
+    :param out_file: name of file or open file object to write output to
+
+    :type xyz: str or list
+    :param xyz: List of lines from an xyz file or string of path to an xyz
+        file.
+
+    :param str job_name: Default: 'default job name'. Name of the job to put
+        into the Gaussian input.
+
+    :param str checkpoint: Default: 'checkpoint.cpt'. File name for the
+        checkpoint file.
+
+    :type nproc: int or str
+    :param nproc: Default: 16. Number of processors to tell Gaussian to use.
+
+    :type mem: int or str
+    :param mem: Default: 125. Number of gigabytes of memory to tell Gaussian
+        to use.
+
+    :param str opt: Default: 'opt'. Opt keywords to tell Gaussian.
+        If True, this will be set to 'opt'.
+        If this evaluates to False, it will be set to the blank string.
+
+    :param str td: Default: False. TD keywords to tell Gaussian.
+        If True, this will be set to TD.
+        If this evaluates to False, it will be set to the blank string.
+
+    :param str func: Default: 'wb97xd'. Functional for Gaussian to use.
+
+    :param str basis: Default: '6-31g(d)'. Basis set for Gaussian to use.
+
+    :param str charg_mult: Default: '0 1'. Charge and multiplicity line.
+
+    :param str template: Default: '~nbth/qm-basics/templ-gen.txt'.
+        The general template file to use. It should have keywords in curly
+        braces with the same names as the keyword arguments to this function.
+    :return: None
+    """
+    if opt:
+        if opt is True:
+            opt = 'opt'
+    else:
+        opt = ''
+    if td:
+        if td is True:
+            td = 'TD'
+    else:
+        td = ''
+    d_fill = dict(job_name=job_name,
+                  checkpoint=checkpoint,
+                  nproc=str(nproc), mem=str(mem),
+                  opt=opt, td=td,
+                  func=func, basis=basis,
+                  charg_mult=charg_mult)
+    if isinstance(xyz, string_types):
+        xyz_lines = open(xyz, 'r').readlines()[1:]
+    else:
+        xyz_lines = xyz[1:]
+    own_handle = False
+    if isinstance(out_file, string_types):
+        own_handle = True
+        out_file = open(out_file, 'x')
+    try:
+        with open(template, 'r') as f_templ:
+            line = ''  # To satisfy IDE in case of empty template
+            for line in f_templ:
+                line.format(**d_fill)
+                out_file.write(line)
+        if '\n' not in line:
+            out_file.write('\n')
+        for line in xyz_lines:
+            out_file.write(line)
+        out_file.write('\n\n\n')
+    finally:
+        if own_handle:
+            out_file.close()
