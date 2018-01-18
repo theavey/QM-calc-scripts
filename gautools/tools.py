@@ -25,6 +25,7 @@ A set of tools for working with computational chemistry files and such
 #                                                                      #
 ########################################################################
 
+import re
 from six import string_types
 from paratemp import copy_no_overwrite
 
