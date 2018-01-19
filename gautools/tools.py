@@ -145,9 +145,9 @@ def use_gen_template(out_file, xyz, job_name='default job name',
                   func=func, basis=basis,
                   charg_mult=charg_mult)
     if isinstance(xyz, string_types):
-        xyz_lines = open(xyz, 'r').readlines()[1:]
+        xyz_lines = open(xyz, 'r').readlines()[2:]
     else:
-        xyz_lines = xyz[1:]
+        xyz_lines = xyz[2:]
     own_handle = False
     if isinstance(out_file, string_types):
         own_handle = True
@@ -156,7 +156,7 @@ def use_gen_template(out_file, xyz, job_name='default job name',
         with open(template, 'r') as f_templ:
             line = ''  # To satisfy IDE in case of empty template
             for line in f_templ:
-                line.format(**d_fill)
+                line = line.format(**d_fill)
                 out_file.write(line)
         if '\n' not in line:
             out_file.write('\n')
