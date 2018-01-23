@@ -134,9 +134,43 @@ def use_template(template, in_names, verbose):
 
 def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
                      mem='125', executable='g09', chk_file=None,
-                     hold_jid=None, make_xyz=None, make_input=False,
+                     hold_jid=None, xyz=None, make_xyz=None, make_input=False,
                      ugt_dict=None):
-    # todo write docstring
+    """
+    Write submission script for (Gaussian) jobs for submission to queue
+
+    :param str input_name: Name of the file to use as input
+    :param int num_cores: Number of cores to request
+    :param str time: Amount of time to request in the format 'hh:mm:ss'
+    :param bool verbose: If True, print out some status messages and such
+    :type mem: int or str
+    :param mem: Minimum amount of memory to request
+    :param str executable: Executable file to use for the job
+
+        Example, 'g09', 'g16'
+
+    :param str chk_file: If not none, this file will be copied back after the
+        job has completed. If this is not None and make_input is True,
+        this will also be passed to use_gen_template.
+    :param str hold_jid: Job on which this job should depend.
+        This should be the name of another job in the queuing system.
+    :param str xyz: Name of an xyz file to use as input to use_gen_template
+        (if make_input is True).
+    :param str make_xyz: The name of a file to pass to obabel to be used to
+        create an xyz file to pass to use_gen_template.
+    :param bool make_input: If True, use_gen_template will be used to create
+        input for the Gaussian calculation.
+    :param dict ugt_dict: dict of arguments to pass to use_gen_template.
+
+        This should not include out_file, xyz, nproc, mem, or checkpoint
+        because those will all be used from other arguments to this function.
+        out_file will be input_name; xyz will be xyz or a time-based name if
+        make_xyz is not None; nproc will be $NSLOTS (useful if this gets
+        changed after job submission); mem will be mem; and checkpoint will
+        be chk_file.
+    :return: The name of the script file
+    :rtype: str
+    """
     rel_dir, file_name = _dir_and_file(input_name)
     if file_name.endswith('.com'):
         short_name = file_name.rsplit('.', 1)[0]
@@ -161,6 +195,10 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         job_name = 'default'
     _script_name = rel_dir + 'submit' + short_name + '.sh'
     temp_xyz = '.temp' + datetime.datetime.now().strftime('%H%M%S%f') + '.xyz'
+    if xyz is None or make_xyz is not None:
+        n_xyz = temp_xyz
+    else:
+        n_xyz = xyz
     temp_pkl = temp_xyz.replace('xyz', 'pkl')
     if ugt_dict is not None:
         make_obj_dir()
@@ -183,13 +221,13 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         if hold_jid is not None:
             script_file.write('#$ -hold_jid {}\n\n'.format(hold_jid))
         if make_xyz is not None:
-            script_file.write('obabel {} -O {}\n'.format(make_xyz, temp_xyz))
+            script_file.write('obabel {} -O {}\n'.format(make_xyz, n_xyz))
         if make_input:
             script_file.write('python -c "from gautools.tools import '
                               'use_gen_template as ugt;'
                               'from thtools import load_obj;'
                               'd = load_obj({});'.format(temp_pkl) +
-                              'ugt({}, {},'.format(file_name, temp_xyz) +
+                              'ugt({}, {},'.format(file_name, n_xyz) +
                               'nproc=$NSLOTS,mem={},{}'.format(mem, chk_line) +
                               '**d)"\n\n')
         script_file.write('INPUTFILE={}\n'.format(file_name))
