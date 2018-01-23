@@ -27,11 +27,12 @@
 from __future__ import print_function
 
 import argparse   # For parsing commandline arguments
+import datetime
 import glob       # Allows referencing file system/file names
 import re
 import readline   # Allows easier file input (with tab completion?)
 import subprocess # Allows for submitting commands to the shell
-from thtools import cd
+from thtools import cd, make_obj_dir, save_obj
 
 yes = ['y', 'yes', '1']
 
@@ -132,7 +133,9 @@ def use_template(template, in_names, verbose):
 
 
 def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
-                     mem='125', executable='g09', chk_file=None):
+                     mem='125', executable='g09', chk_file=None,
+                     hold_jid=None, make_xyz=None, make_input=False,
+                     ugt_dict=None):
     # todo write docstring
     rel_dir, file_name = _dir_and_file(input_name)
     if file_name.endswith('.com'):
@@ -157,6 +160,15 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
     if len(job_name) == 0:
         job_name = 'default'
     _script_name = rel_dir + 'submit' + short_name + '.sh'
+    temp_xyz = '.temp' + datetime.datetime.now().strftime('%H%M%S%f') + '.xyz'
+    temp_pkl = temp_xyz.replace('xyz', 'pkl')
+    if ugt_dict is not None:
+        make_obj_dir()
+        save_obj(ugt_dict, temp_pkl)
+    if chk_file is not None:
+        chk_line = 'checkpoint={},'.format(chk_file)
+    else:
+        chk_line = ''
 
     with open(_script_name, 'w') as script_file:
         script_file.write('#!/bin/sh \n\n')
@@ -168,6 +180,18 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         script_file.write('#$ -N {}\n'.format(job_name))
         script_file.write('#$ -j y\n')
         script_file.write('#$ -o {}.log\n\n'.format(short_name))
+        if hold_jid is not None:
+            script_file.write('#$ -hold_jid {}\n\n'.format(hold_jid))
+        if make_xyz is not None:
+            script_file.write('obabel {} -O {}\n'.format(make_xyz, temp_xyz))
+        if make_input:
+            script_file.write('python -c "from gautools.tools import '
+                              'use_gen_template as ugt;'
+                              'from thtools import load_obj;'
+                              'd = load_obj({});'.format(temp_pkl) +
+                              'ugt({}, {},'.format(file_name, temp_xyz) +
+                              'nproc=$NSLOTS,mem={},{}'.format(mem, chk_line) +
+                              '**d)"\n\n')
         script_file.write('INPUTFILE={}\n'.format(file_name))
         script_file.write('OUTPUTFILE={}\n\n'.format(out_name))
         script_file.write('CURRENTDIR=`pwd`\n')
