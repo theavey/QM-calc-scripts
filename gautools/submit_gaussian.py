@@ -224,9 +224,9 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
             script_file.write('obabel {} -O {}\n'.format(make_xyz, n_xyz))
         if make_input:
             script_file.write('python -c "from gautools.tools import '
-                              'use_gen_template as ugt;'
-                              'from thtools import load_obj;'
-                              'd = load_obj(\'{}\');'.format(temp_pkl) +
+                              'use_gen_template as ugt;\n'
+                              'from thtools import load_obj;\n'
+                              'd = load_obj(\'{}\');\n'.format(temp_pkl) +
                               'ugt(\'{}\',\'{}\','.format(file_name, n_xyz) +
                               'nproc=$NSLOTS,mem={},{}'.format(mem, chk_line) +
                               '**d)"\n\n')
