@@ -209,7 +209,7 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         chk_line = ''
 
     with open(_script_name, 'w') as script_file:
-        script_file.write('#!/bin/sh \n\n')
+        script_file.write('#!/bin/bash -l\n\n')
         script_file.write('#$ -pe omp {}\n'.format(num_cores))
         script_file.write('#$ -M theavey@bu.edu\n')
         script_file.write('#$ -m eas\n')
@@ -221,7 +221,9 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         if hold_jid is not None:
             script_file.write('#$ -hold_jid {}\n\n'.format(hold_jid))
         if make_xyz is not None:
-            script_file.write('obabel {} -O {}\n'.format(make_xyz, n_xyz))
+            script_file.write('module load wxwidgets/3.0.2\n')
+            script_file.write('module load openbabel/2.4.1\n')
+            script_file.write('obabel {} -O {}\n\n'.format(make_xyz, n_xyz))
         if make_input:
             script_file.write('python -c "from gautools.tools import '
                               'use_gen_template as ugt;\n'
