@@ -199,7 +199,7 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         n_xyz = temp_xyz
     else:
         n_xyz = xyz
-    temp_pkl = temp_xyz.replace('xyz', 'pkl')
+    temp_pkl = temp_xyz[:-4]
     if ugt_dict is not None:
         make_obj_dir()
         save_obj(ugt_dict, temp_pkl)
