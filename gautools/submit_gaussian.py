@@ -132,7 +132,7 @@ def use_template(template, in_names, verbose):
 
 
 def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
-                     mem='125', executable='g09', cpt_file=None):
+                     mem='125', executable='g09', chk_file=None):
     # todo write docstring
     rel_dir, file_name = _dir_and_file(input_name)
     if file_name.endswith('.com'):
@@ -180,8 +180,8 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         script_file.write('{} <$INPUTFILE > $OUTPUTFILE'.format(executable))
         script_file.write('\n\n')
         script_file.write('cp $OUTPUTFILE $CURRENTDIR/.\n\n')
-        if cpt_file is not None:
-            script_file.write('cp {} $CURRENTDIR/.\n\n'.format(cpt_file))
+        if chk_file is not None:
+            script_file.write('cp {} $CURRENTDIR/.\n\n'.format(chk_file))
         script_file.write('echo ran in /net/`hostname -s`$SCRATCHDIR\n')
         script_file.write('echo output was copied to $CURRENTDIR\n\n')
 

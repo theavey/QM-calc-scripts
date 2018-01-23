@@ -79,7 +79,7 @@ def fix_atom_names_xyz(xyz, dry_run=False, return_list=False):
 
 
 def use_gen_template(out_file, xyz, job_name='default job name',
-                     checkpoint='checkpoint.cpt',
+                     checkpoint='checkpoint.chk',
                      nproc=16, mem=125,
                      opt='opt', td=False,
                      func='wb97xd', basis='6-31g(d)',
