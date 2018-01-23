@@ -204,7 +204,7 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         make_obj_dir()
         save_obj(ugt_dict, temp_pkl)
     if chk_file is not None:
-        chk_line = 'checkpoint={},'.format(chk_file)
+        chk_line = 'checkpoint=\'{}\','.format(chk_file)
     else:
         chk_line = ''
 
@@ -226,8 +226,8 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
             script_file.write('python -c "from gautools.tools import '
                               'use_gen_template as ugt;'
                               'from thtools import load_obj;'
-                              'd = load_obj({});'.format(temp_pkl) +
-                              'ugt({}, {},'.format(file_name, n_xyz) +
+                              'd = load_obj(\'{}\');'.format(temp_pkl) +
+                              'ugt(\'{}\',\'{}\','.format(file_name, n_xyz) +
                               'nproc=$NSLOTS,mem={},{}'.format(mem, chk_line) +
                               '**d)"\n\n')
         script_file.write('INPUTFILE={}\n'.format(file_name))
