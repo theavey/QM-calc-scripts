@@ -227,10 +227,11 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         if make_input:
             script_file.write('python -c "from gautools.tools import '
                               'use_gen_template as ugt;\n'
-                              'from thtools import load_obj;\n'
+                              'from thtools import load_obj, get_node_mem;\n'
+                              'm = get_node_mem();\n'
                               'd = load_obj(\'{}\');\n'.format(temp_pkl) +
                               'ugt(\'{}\',\'{}\','.format(file_name, n_xyz) +
-                              'nproc=$NSLOTS,mem={},{}'.format(mem, chk_line) +
+                              'nproc=$NSLOTS,mem=m,{}'.format(chk_line) +
                               '**d)"\n\n')
         script_file.write('INPUTFILE={}\n'.format(file_name))
         script_file.write('OUTPUTFILE={}\n\n'.format(out_name))
