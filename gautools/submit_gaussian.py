@@ -221,8 +221,11 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         if hold_jid is not None:
             script_file.write('#$ -hold_jid {}\n\n'.format(hold_jid))
         if make_xyz is not None:
+            script_file.write('if [ ! -f {} ]; then\n'.format(make_xyz) +
+                              '    exit 17\n'
+                              'fi\n\n')
             script_file.write('module load wxwidgets/3.0.2\n')
-            script_file.write('module load openbabel/2.4.1\n')
+            script_file.write('module load openbabel/2.4.1\n\n')
             script_file.write('obabel {} -O {}\n\n'.format(make_xyz, n_xyz))
         if make_input:
             script_file.write('python -c "from gautools.tools import '
