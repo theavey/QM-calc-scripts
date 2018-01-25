@@ -139,6 +139,9 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
     """
     Write submission script for (Gaussian) jobs for submission to queue
 
+    If make_xyz is not None, the file make_xyz will be checked to exist
+    first to make sure to not waste time when missing a necessary input file.
+
     :param str input_name: Name of the file to use as input
     :param int num_cores: Number of cores to request
     :param str time: Amount of time to request in the format 'hh:mm:ss'
