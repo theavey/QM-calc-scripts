@@ -29,6 +29,7 @@ from __future__ import print_function
 import argparse   # For parsing commandline arguments
 import datetime
 import glob       # Allows referencing file system/file names
+import os
 import re
 import readline   # Allows easier file input (with tab completion?)
 import subprocess # Allows for submitting commands to the shell
@@ -224,19 +225,23 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         if hold_jid is not None:
             script_file.write('#$ -hold_jid {}\n\n'.format(hold_jid))
         if make_xyz is not None:
-            script_file.write('if [ ! -f {} ]; then\n'.format(make_xyz) +
+            script_file.write('if [ ! -f {} ]; then\n'.format(
+                os.path.abspath(make_xyz)) +
                               '    exit 17\n'
                               'fi\n\n')
             script_file.write('module load wxwidgets/3.0.2\n')
             script_file.write('module load openbabel/2.4.1\n\n')
-            script_file.write('obabel {} -O {}\n\n'.format(make_xyz, n_xyz))
+            script_file.write('obabel {} -O {}\n\n'.format(os.path.abspath(
+                make_xyz), os.path.abspath(n_xyz)))
         if make_input:
             script_file.write('python -c "from gautools.tools import '
                               'use_gen_template as ugt;\n'
                               'from thtools import load_obj, get_node_mem;\n'
                               'm = get_node_mem();\n'
-                              'd = load_obj(\'{}\');\n'.format(temp_pkl) +
-                              'ugt(\'{}\',\'{}\','.format(file_name, n_xyz) +
+                              'd = load_obj(\'{}\');\n'.format(
+                                os.path.abspath(temp_pkl)) +
+                              'ugt(\'{}\',\'{}\','.format(
+                                  file_name, os.path.abspath(n_xyz)) +
                               'nproc=$NSLOTS,mem=m,{}'.format(chk_line) +
                               '**d)"\n\n')
         script_file.write('INPUTFILE={}\n'.format(file_name))
