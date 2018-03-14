@@ -261,7 +261,7 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
     return _script_name
 
 
-def submit_scripts(scripts, batch, submit, verbose):
+def submit_scripts(scripts, batch=False, submit=False, verbose=False):
     outputs = []
     if batch:
         if submit or input('submit all jobs? ') in yes:
