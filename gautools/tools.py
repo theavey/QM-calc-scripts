@@ -84,6 +84,7 @@ def use_gen_template(out_file, xyz, job_name='default job name',
                      opt='opt', td=False,
                      func='wb97xd', basis='6-31g(d)',
                      charg_mult='0 1',
+                     footer='\n\n',
                      template='/projectnb/nonadmd/theavey'
                               '/qm-basics/templ-gen.txt'):
     """
@@ -122,6 +123,9 @@ def use_gen_template(out_file, xyz, job_name='default job name',
     :param str basis: Default: '6-31g(d)'. Basis set for Gaussian to use.
 
     :param str charg_mult: Default: '0 1'. Charge and multiplicity line.
+
+    :param str footer: Default: '\n\n'. Footer of input file. Useful for RESP
+        charge calculation jobs and such.
 
     :param str template: Default: '~nbth/qm-basics/templ-gen.txt'.
         The general template file to use. It should have keywords in curly
@@ -162,7 +166,7 @@ def use_gen_template(out_file, xyz, job_name='default job name',
             out_file.write('\n')
         for line in xyz_lines:
             out_file.write(line)
-        out_file.write('\n\n\n')
+        out_file.write(footer)
     finally:
         if own_handle:
             out_file.close()
