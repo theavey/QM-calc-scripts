@@ -33,7 +33,8 @@ import os
 import re
 import readline   # Allows easier file input (with tab completion?)
 import subprocess # Allows for submitting commands to the shell
-from thtools import cd, make_obj_dir, save_obj
+from warnings import warn
+from thtools import cd, make_obj_dir, save_obj, resolve_path
 
 yes = ['y', 'yes', '1']
 
@@ -49,6 +50,8 @@ def rlinput(prompt, prefill=''):
 
 
 def _dir_and_file(path):
+    warn('_dir_and_file is deprecated. Use os.path.split instead',
+         DeprecationWarning)
     if '/' in path:
         rel_dir, f_name = path.rsplit('/', 1)
         rel_dir = rel_dir + '/'
@@ -175,16 +178,15 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
     :return: The name of the script file
     :rtype: str
     """
-    rel_dir, file_name = _dir_and_file(input_name)
+    rel_dir, file_name = os.path.split(input_name)
     if file_name.endswith('.com'):
-        short_name = file_name.rsplit('.', 1)[0]
+        short_name = os.path.splitext(file_name)[0]
         if not short_name + '.com' == file_name:
             raise SyntaxError('problem interpreting file name. ' +
                               'Period in file name?')
         out_name = short_name + '.out'
     elif '.' in file_name:
-        short_name = file_name.rsplit('.', 1)[0]
-        input_extension = file_name.rsplit('.', 1)[-1]
+        short_name, input_extension = os.path.splitext(file_name)
         if not short_name + '.' + input_extension == file_name:
             raise SyntaxError('problem interpreting file name. ' +
                               'Period in file name?')
@@ -197,16 +199,18 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
     job_name = re.match(r'.*?([a-zA-Z].*)', short_name).group(1)
     if len(job_name) == 0:
         job_name = 'default'
-    _script_name = rel_dir + 'submit' + short_name + '.sh'
-    temp_xyz = '.temp' + datetime.datetime.now().strftime('%H%M%S%f') + '.xyz'
+    _script_name = os.path.join(rel_dir, 'submit'+short_name+'.sh')
+    temp_xyz = os.path.abspath('.temp' +
+                               datetime.datetime.now().strftime('%H%M%S%f') +
+                               '.xyz')
     if xyz is None or make_xyz is not None:
         n_xyz = temp_xyz
     else:
-        n_xyz = xyz
+        n_xyz = resolve_path(xyz)
     temp_pkl = temp_xyz[:-4]
     if ugt_dict is not None:
         make_obj_dir()
-        save_obj(ugt_dict, temp_pkl)
+        pkl_path = save_obj(ugt_dict, temp_pkl)
     if chk_file is not None:
         chk_line = 'checkpoint=\'{}\','.format(chk_file)
     else:
@@ -239,7 +243,7 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
                               'from thtools import load_obj, get_node_mem;\n'
                               'm = get_node_mem();\n'
                               'd = load_obj(\'{}\');\n'.format(
-                                os.path.abspath(temp_pkl)) +
+                                os.path.abspath(pkl_path)) +
                               'ugt(\'{}\',\'{}\','.format(
                                   file_name, os.path.abspath(n_xyz)) +
                               'nproc=$NSLOTS,mem=m,{}'.format(chk_line) +
