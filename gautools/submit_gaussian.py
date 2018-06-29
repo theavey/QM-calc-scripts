@@ -249,7 +249,11 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
                               'nproc=$NSLOTS,mem=m,{}'.format(chk_line) +
                               '**d)"\n\n')
         script_file.write('INPUTFILE={}\n'.format(file_name))
-        script_file.write('OUTPUTFILE={}\n\n'.format(out_name))
+        script_file.write('OUTPUTFILE={}\n'.format(out_name))
+        if chk_file is not None:
+            script_file.write('CHECKFILE={}\n\n'.format(chk_file))
+        else:
+            script_file.write('\n')
         script_file.write('CURRENTDIR=`pwd`\n')
         script_file.write('SCRATCHDIR=/scratch/$USER\n')
         script_file.write('mkdir -p $SCRATCHDIR\n\n')
@@ -259,9 +263,12 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
                           'hostname -s`$SCRATCHDIR\n\n')
         script_file.write('{} <$INPUTFILE > $OUTPUTFILE'.format(executable))
         script_file.write('\n\n')
-        script_file.write('cp $OUTPUTFILE $CURRENTDIR/.\n\n')
+        script_file.write('cp $OUTPUTFILE $CURRENTDIR/.\n')
         if chk_file is not None:
-            script_file.write('cp {} $CURRENTDIR/.\n\n'.format(chk_file))
+            script_file.write('cp $CHECKFILE $CURRENTDIR/.\n\n'.format(
+                chk_file))
+        else:
+            script_file.write('\n')
         script_file.write('echo ran in /net/`hostname -s`$SCRATCHDIR\n')
         script_file.write('echo output was copied to $CURRENTDIR\n\n')
 
