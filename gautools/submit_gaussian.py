@@ -339,6 +339,10 @@ if __name__ == '__main__':
                         help='make program more verbose')
     parser.add_argument('-j', '--nojobinfo', action='store_false',
                         help='Do not return the submitted job information')
+    parser.add_argument('-k', '--chk_file', default=None,
+                        help='checkpoint file to be written and copied back')
+    parser.add_argument('-d', '--hold_jid', default=None,
+                        help='job on which this job should depend')
     args = parser.parse_args()
 
     in_name_list, args.batch = get_input_files(args.in_name, args.batch)
@@ -350,7 +354,9 @@ if __name__ == '__main__':
                                        num_cores=args.numcores,
                                        time=args.time,
                                        verbose=args.verbose,
-                                       executable=args.executable)
+                                       executable=args.executable,
+                                       chk_file=args.chk_file,
+                                       hold_jid=args.hold_jid)
         script_list.append(script_name)
     if not len(script_list) == len(in_name_list):
         # This should never be the case as far as I know, but I would
