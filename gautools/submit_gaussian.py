@@ -139,6 +139,7 @@ def use_template(template, in_names, verbose):
 def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
                      mem='125', executable='g09',
                      chk_file=None, copy_chk=False,
+                     ln_running=None,
                      hold_jid=None, xyz=None, make_xyz=None, make_input=False,
                      ugt_dict=None):
     """
@@ -163,6 +164,9 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
     :param bool copy_chk: If this is True, the script will attempt to copy
         what should be an existing checkpoint file to the scratch directory
         before running the job. `chk_file` must be not None as well.
+    :param str ln_running: If not None, this will be the base name for
+        linking the output file to the current directory. If chk_file is not
+        None, it will also be linked with the same base name.
     :param str hold_jid: Job on which this job should depend.
         This should be the name of another job in the queuing system.
     :param str xyz: Name of an xyz file to use as input to use_gen_template
@@ -259,6 +263,12 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
             sfw('CHECKFILE={}\n\n'.format(chk_file))
         else:
             sfw('\n')
+        if ln_running is not None:
+            sfw('WORKINGOUT={}.out\n'.format(ln_running))
+            if chk_file is not None:
+                sfw('WORKINGCHK={}.chk\n\n'.format(ln_running))
+            else:
+                sfw('\n')
         sfw('CURRENTDIR=`pwd`\n')
         sfw('SCRATCHDIR=/scratch/$USER\n')
         sfw('mkdir -p $SCRATCHDIR\n\n')
@@ -269,10 +279,24 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
             sfw('cp $CURRENTDIR/$CHECKFILE .\n\n')
         else:
             sfw('\n')
+        if ln_running is not None:
+            sfw('ln -s -b /net/`hostname -s`$PWD/$OUTPUTFILE '
+                '$CURRENTDIR/$WORKINGOUT\n')
+            if chk_file is not None:
+                sfw('ln -s -b /net/`hostname -s`$PWD/$OUTPUTFILE '
+                    '$CURRENTDIR/$WORKINGCHK\n\n')
+            else:
+                sfw('\n')
         sfw('echo About to run {} in /net/`'.format(executable) +
             'hostname -s`$SCRATCHDIR\n\n')
         sfw('{} <$INPUTFILE > $OUTPUTFILE'.format(executable))
         sfw('\n\n')
+        if ln_running is not None:
+            sfw('rm $CURRENTDIR/$WORKINGOUT')
+            if chk_file is not None:
+                sfw(' $CURRENTDIR/$WORKINGCHK\n\n')
+            else:
+                sfw('\n\n')
         sfw('cp $OUTPUTFILE $CURRENTDIR/.\n')
         if chk_file is not None:
             sfw('cp $CHECKFILE $CURRENTDIR/.\n\n')
