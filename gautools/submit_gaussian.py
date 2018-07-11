@@ -137,7 +137,8 @@ def use_template(template, in_names, verbose):
 
 
 def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
-                     mem='125', executable='g09', chk_file=None,
+                     mem='125', executable='g09',
+                     chk_file=None, copy_chk=False,
                      hold_jid=None, xyz=None, make_xyz=None, make_input=False,
                      ugt_dict=None):
     """
@@ -156,9 +157,12 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
 
         Example, 'g09', 'g16'
 
-    :param str chk_file: If not none, this file will be copied back after the
+    :param str chk_file: If not None, this file will be copied back after the
         job has completed. If this is not None and make_input is True,
         this will also be passed to use_gen_template.
+    :param bool copy_chk: If this is True, the script will attempt to copy
+        what should be an existing checkpoint file to the scratch directory
+        before running the job. `chk_file` must be not None as well.
     :param str hold_jid: Job on which this job should depend.
         This should be the name of another job in the queuing system.
     :param str xyz: Name of an xyz file to use as input to use_gen_template
@@ -217,60 +221,65 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
         chk_line = ''
 
     with open(_script_name, 'w') as script_file:
-        script_file.write('#!/bin/bash -l\n\n')
-        script_file.write('#$ -pe omp {}\n'.format(num_cores))
-        script_file.write('#$ -M theavey@bu.edu\n')
-        script_file.write('#$ -m eas\n')
-        script_file.write('#$ -l h_rt={}\n'.format(time))
-        script_file.write('#$ -l mem_total={}G\n'.format(mem))
-        script_file.write('#$ -N {}\n'.format(job_name))
-        script_file.write('#$ -j y\n')
-        script_file.write('#$ -o {}.log\n\n'.format(short_name))
+        sfw = script_file.write
+        sfw('#!/bin/bash -l\n\n')
+        sfw('#$ -pe omp {}\n'.format(num_cores))
+        sfw('#$ -M theavey@bu.edu\n')
+        sfw('#$ -m eas\n')
+        sfw('#$ -l h_rt={}\n'.format(time))
+        sfw('#$ -l mem_total={}G\n'.format(mem))
+        sfw('#$ -N {}\n'.format(job_name))
+        sfw('#$ -j y\n')
+        sfw('#$ -o {}.log\n\n'.format(short_name))
         if hold_jid is not None:
-            script_file.write('#$ -hold_jid {}\n\n'.format(hold_jid))
+            sfw('#$ -hold_jid {}\n\n'.format(hold_jid))
         if make_xyz is not None:
-            script_file.write('if [ ! -f {} ]; then\n'.format(
+            sfw('if [ ! -f {} ]; then\n'.format(
                 os.path.abspath(make_xyz)) +
-                              '    exit 17\n'
-                              'fi\n\n')
-            script_file.write('module load wxwidgets/3.0.2\n')
-            script_file.write('module load openbabel/2.4.1\n\n')
-            script_file.write('obabel {} -O {}\n\n'.format(os.path.abspath(
+                '    exit 17\n'
+                'fi\n\n')
+            sfw('module load wxwidgets/3.0.2\n')
+            sfw('module load openbabel/2.4.1\n\n')
+            sfw('obabel {} -O {}\n\n'.format(os.path.abspath(
                 make_xyz), os.path.abspath(n_xyz)))
         if make_input:
-            script_file.write('python -c "from gautools.tools import '
-                              'use_gen_template as ugt;\n'
-                              'from thtools import load_obj, get_node_mem;\n'
-                              'm = get_node_mem();\n'
-                              'd = load_obj(\'{}\');\n'.format(
-                                os.path.abspath(pkl_path)) +
-                              'ugt(\'{}\',\'{}\','.format(
-                                  file_name, os.path.abspath(n_xyz)) +
-                              'nproc=$NSLOTS,mem=m,{}'.format(chk_line) +
-                              '**d)"\n\n')
-        script_file.write('INPUTFILE={}\n'.format(file_name))
-        script_file.write('OUTPUTFILE={}\n'.format(out_name))
+            sfw('python -c "from gautools.tools import '
+                'use_gen_template as ugt;\n'
+                'from thtools import load_obj, get_node_mem;\n'
+                'm = get_node_mem();\n'
+                'd = load_obj(\'{}\');\n'.format(
+                  os.path.abspath(pkl_path)) +
+                'ugt(\'{}\',\'{}\','.format(
+                    file_name, os.path.abspath(n_xyz)) +
+                'nproc=$NSLOTS,mem=m,{}'.format(chk_line) +
+                '**d)"\n\n')
+        sfw('INPUTFILE={}\n'.format(file_name))
+        sfw('OUTPUTFILE={}\n'.format(out_name))
         if chk_file is not None:
-            script_file.write('CHECKFILE={}\n\n'.format(chk_file))
+            sfw('CHECKFILE={}\n\n'.format(chk_file))
         else:
-            script_file.write('\n')
-        script_file.write('CURRENTDIR=`pwd`\n')
-        script_file.write('SCRATCHDIR=/scratch/$USER\n')
-        script_file.write('mkdir -p $SCRATCHDIR\n\n')
-        script_file.write('cd $SCRATCHDIR\n\n')
-        script_file.write('cp $CURRENTDIR/$INPUTFILE .\n\n')
-        script_file.write('echo About to run {} in /net/`'.format(executable) +
-                          'hostname -s`$SCRATCHDIR\n\n')
-        script_file.write('{} <$INPUTFILE > $OUTPUTFILE'.format(executable))
-        script_file.write('\n\n')
-        script_file.write('cp $OUTPUTFILE $CURRENTDIR/.\n')
+            sfw('\n')
+        sfw('CURRENTDIR=`pwd`\n')
+        sfw('SCRATCHDIR=/scratch/$USER\n')
+        sfw('mkdir -p $SCRATCHDIR\n\n')
+        sfw('cd $SCRATCHDIR\n\n')
+        sfw('cp $CURRENTDIR/$INPUTFILE .\n')
         if chk_file is not None:
-            script_file.write('cp $CHECKFILE $CURRENTDIR/.\n\n'.format(
-                chk_file))
+            sfw('# ') if not copy_chk else None
+            sfw('cp $CURRENTDIR/$CHECKFILE .\n\n')
         else:
-            script_file.write('\n')
-        script_file.write('echo ran in /net/`hostname -s`$SCRATCHDIR\n')
-        script_file.write('echo output was copied to $CURRENTDIR\n\n')
+            sfw('\n')
+        sfw('echo About to run {} in /net/`'.format(executable) +
+            'hostname -s`$SCRATCHDIR\n\n')
+        sfw('{} <$INPUTFILE > $OUTPUTFILE'.format(executable))
+        sfw('\n\n')
+        sfw('cp $OUTPUTFILE $CURRENTDIR/.\n')
+        if chk_file is not None:
+            sfw('cp $CHECKFILE $CURRENTDIR/.\n\n')
+        else:
+            sfw('\n')
+        sfw('echo ran in /net/`hostname -s`$SCRATCHDIR\n')
+        sfw('echo output was copied to $CURRENTDIR\n\n')
 
     if verbose:
         print('script written to {}'.format(_script_name))
