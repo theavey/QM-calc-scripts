@@ -381,6 +381,11 @@ if __name__ == '__main__':
                         help='Do not return the submitted job information')
     parser.add_argument('-k', '--chk_file', default=None,
                         help='checkpoint file to be written and copied back')
+    parser.add_argument('--copy_chk', action='store_true',
+                        help='Copy check file to the scratch directory')
+    parser.add_argument('-l', '--ln_running', type=str, default=None,
+                        help='base name for linking output to cwd while '
+                             'running')
     parser.add_argument('-d', '--hold_jid', default=None,
                         help='job on which this job should depend')
     args = parser.parse_args()
