@@ -283,7 +283,7 @@ def write_sub_script(input_name, num_cores=16, time='12:00:00', verbose=False,
             sfw('ln -s -b /net/`hostname -s`$PWD/$OUTPUTFILE '
                 '$CURRENTDIR/$WORKINGOUT\n')
             if chk_file is not None:
-                sfw('ln -s -b /net/`hostname -s`$PWD/$OUTPUTFILE '
+                sfw('ln -s -b /net/`hostname -s`$PWD/$CHECKFILE '
                     '$CURRENTDIR/$WORKINGCHK\n\n')
             else:
                 sfw('\n')
