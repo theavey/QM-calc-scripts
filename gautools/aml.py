@@ -55,6 +55,8 @@ def run_calc(base_name, ind, top, traj, criteria, ugt_dicts):
     :param List[dict] ugt_dicts:
     :return:
     """
+    # TODO: get ind (index) from SGE_TASK_ID?
+    # do this if not given, and save it to args for passing on?
     args = base_name, ind, top, traj, criteria, ugt_dicts
     # TODO: save args to disk?
     # Could then give these defaults, and if it's a continuation, just load
