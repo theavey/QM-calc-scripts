@@ -40,44 +40,82 @@ try:
     import pathlib
 except ImportError:
     import pathlib2 as pathlib
+import signal
 
 
-def run_calc(base_name, ind, top, traj, criteria, ugt_dicts):
-    """
+class Calc(object):
 
-    :param str base_name:
-    :param int ind:
-    :type top: pathlib.Path or str
-    :param top:
-    :type traj: pathlib.Path or str
-    :param traj:
-    :param dict criteria:
-    :param List[dict] ugt_dicts:
-    :return:
-    """
-    # TODO: get ind (index) from SGE_TASK_ID?
-    # do this if not given, and save it to args for passing on?
-    args = base_name, ind, top, traj, criteria, ugt_dicts
-    # TODO: save args to disk?
-    # Could then give these defaults, and if it's a continuation, just load
-    # all the arguments from disk. Need to think about how this will be used,
-    # exactly
-    _base_name = '{}-{}'.format(base_name, ind)
-    log = logging.getLogger('{}.log'.format(_base_name))
-    _json_name = '{}.json'.format(_base_name)
-    status = json.load(open(_json_name, 'r')) if pathlib.Path(
-        _json_name).is_file() else dict()
-    if status:
-        log.info('loaded previous status file: {}'.format(_json_name))
-        resume_calc(status, *args)
-    else:
-        log.warning('No previous status file found. Starting new calculation?')
-        new_calc(status, *args)
+    def __init__(self, base_name, ind, top, traj, criteria, ugt_dicts):
+        """
 
+        :param str base_name:
+        :param int ind:
+        :type top: pathlib.Path or str
+        :param top:
+        :type traj: pathlib.Path or str
+        :param traj:
+        :param dict criteria:
+        :param List[dict] ugt_dicts:
+        :return:
+        """
+        # TODO: get ind (index) from SGE_TASK_ID?
+        # do this if not given, and save it to args for passing on?
+        self.args = base_name, ind, top, traj, criteria, ugt_dicts
+        self.top = top
+        self.traj = traj
+        self.criteria = criteria
+        self.ugt_dicts = ugt_dicts
+        # TODO: save args to disk?
+        # Could then give these defaults, and if it's a continuation, just load
+        # all the arguments from disk. Need to think about how this will
+        # be used, exactly
+        self._base_name = '{}-{}'.format(base_name, ind)
+        self.log = logging.getLogger('{}.log'.format(self._base_name))
+        self._json_name = '{}.json'.format(self._base_name)
+        self.status = json.load(open(self._json_name, 'r')) if pathlib.Path(
+            self._json_name).is_file() else dict()
 
-def resume_calc(status, base_name, ind, top, traj, criteria, ugt_dicts):
-    pass
+    def run_calc(self, base_name, ind, top, traj, criteria, ugt_dicts):
+        """
 
+        :param str base_name:
+        :param int ind:
+        :type top: pathlib.Path or str
+        :param top:
+        :type traj: pathlib.Path or str
+        :param traj:
+        :param dict criteria:
+        :param List[dict] ugt_dicts:
+        :return:
+        """
+        # TODO: get ind (index) from SGE_TASK_ID?
+        # do this if not given, and save it to args for passing on?
+        args = base_name, ind, top, traj, criteria, ugt_dicts
+        # TODO: save args to disk?
+        # Could then give these defaults, and if it's a continuation, just load
+        # all the arguments from disk. Need to think about how this will
+        # be used, exactly
+        _base_name = '{}-{}'.format(base_name, ind)
+        log = logging.getLogger('{}.log'.format(_base_name))
+        _json_name = '{}.json'.format(_base_name)
+        status = json.load(open(_json_name, 'r')) if pathlib.Path(
+            _json_name).is_file() else dict()
+        # TODO: catch job-ending warning here?
+        signal.signal(signal.SIGUSR2, self.resub_calc)
+        if status:
+            log.info('loaded previous status file: {}'.format(_json_name))
+            self.resume_calc(status, *args)
+        else:
+            log.warning('No previous status file found. '
+                        'Starting new calculation?')
+            self.new_calc(status, *args)
 
-def new_calc(status, base_name, ind, top, traj, criteria, ugt_dicts):
-    pass
+    def resume_calc(self, status, base_name, ind, top, traj, criteria,
+                    ugt_dicts):
+        pass
+
+    def new_calc(self, status, base_name, ind, top, traj, criteria, ugt_dicts):
+        pass
+
+    def resub_calc(self, signum, frame):
+        pass
