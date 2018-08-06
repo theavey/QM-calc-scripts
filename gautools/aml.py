@@ -36,11 +36,15 @@ intermediate files to speed up subsequent calculations.
 
 import json
 import logging
+import MDAnalysis as mda
+import numpy as np
+import paratemp
 try:
     import pathlib
 except ImportError:
     import pathlib2 as pathlib
 import signal
+from . import tools
 
 
 class Calc(object):
@@ -54,7 +58,14 @@ class Calc(object):
         :param top:
         :type traj: pathlib.Path or str
         :param traj:
-        :param dict criteria:
+        :param dict criteria: The criteria for selecting frames from the
+            trajectory.
+            This is a dict with distance names (or other columns that will
+            be in `Universe.data`) as the keys and the values being a
+            List-like of min and max values.
+            For example, `{'c1_c2': (1.5, 4.0), 'c1_c3': (2.2, 5.1)}` will
+            select frames where 'c1_c2' is between 1.5 and 4.0 and 'c1_c3'
+            is between 2.2 and 5.1.
         :param List[dict] ugt_dicts:
         :return:
         """
@@ -75,47 +86,48 @@ class Calc(object):
         self.status = json.load(open(self._json_name, 'r')) if pathlib.Path(
             self._json_name).is_file() else dict()
 
-    def run_calc(self, base_name, ind, top, traj, criteria, ugt_dicts):
+    def run_calc(self):
         """
 
-        :param str base_name:
-        :param int ind:
-        :type top: pathlib.Path or str
-        :param top:
-        :type traj: pathlib.Path or str
-        :param traj:
-        :param dict criteria:
-        :param List[dict] ugt_dicts:
+
         :return:
         """
-        # TODO: get ind (index) from SGE_TASK_ID?
-        # do this if not given, and save it to args for passing on?
-        args = base_name, ind, top, traj, criteria, ugt_dicts
-        # TODO: save args to disk?
-        # Could then give these defaults, and if it's a continuation, just load
-        # all the arguments from disk. Need to think about how this will
-        # be used, exactly
-        _base_name = '{}-{}'.format(base_name, ind)
-        log = logging.getLogger('{}.log'.format(_base_name))
-        _json_name = '{}.json'.format(_base_name)
-        status = json.load(open(_json_name, 'r')) if pathlib.Path(
-            _json_name).is_file() else dict()
         # TODO: catch job-ending warning here?
         signal.signal(signal.SIGUSR2, self.resub_calc)
-        if status:
-            log.info('loaded previous status file: {}'.format(_json_name))
-            self.resume_calc(status, *args)
+        if self.status:
+            self.log.info('loaded previous status file: {}'.format(
+                self._json_name))
+            self.resume_calc()
         else:
-            log.warning('No previous status file found. '
-                        'Starting new calculation?')
-            self.new_calc(status, *args)
+            self.log.warning('No previous status file found. '
+                             'Starting new calculation?')
+            self.new_calc()
 
-    def resume_calc(self, status, base_name, ind, top, traj, criteria,
-                    ugt_dicts):
+    def resume_calc(self):
         pass
 
-    def new_calc(self, status, base_name, ind, top, traj, criteria, ugt_dicts):
-        pass
+    def _make_rand_xyz(self):
+        u = paratemp.Universe(self.top, self.traj)
+        u.read_data()
+        frames = u.select_frames(self.criteria, 'QM_frames')
+        select = np.random.choice(frames)
+        system = u.select_atoms('all')
+        with mda.Writer(self._base_name+'.xyz', system.n_atoms) as w:
+            u.trajectory[select]
+            w.write(system)
+        # TODO write to log
+
+    def new_calc(self):
+        self._make_rand_xyz()
+        bn = self._base_name
+        tools.use_gen_template(
+            out_file=bn + '-0.com',
+            xyz=bn + '.xyz',
+            job_name=bn,
+            checkpoint=bn + '.chk',
+            **self.ugt_dicts[0]
+        )
+        # TODO write to log
 
     def resub_calc(self, signum, frame):
         pass
