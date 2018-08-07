@@ -112,22 +112,26 @@ class Calc(object):
         frames = u.select_frames(self.criteria, 'QM_frames')
         select = np.random.choice(frames)
         system = u.select_atoms('all')
-        with mda.Writer(self._base_name+'.xyz', system.n_atoms) as w:
+        xyz_name = self._base_name + '.xyz'
+        with mda.Writer(xyz_name, system.n_atoms) as w:
             u.trajectory[select]
             w.write(system)
-        # TODO write to log
+        self.log.info('Wrote xyz file from frame {} to {}'.format(select,
+                                                                  xyz_name))
 
     def new_calc(self):
         self._make_rand_xyz()
         bn = self._base_name
+        com_name = bn + '-0.com'
         tools.use_gen_template(
-            out_file=bn + '-0.com',
+            out_file=com_name,
             xyz=bn + '.xyz',
             job_name=bn,
             checkpoint=bn + '.chk',
             **self.ugt_dicts[0]
         )
-        # TODO write to log
+        self.log.info('Wrote Gaussian input for '
+                      'first job to {}'.format(com_name))
 
     def resub_calc(self, signum, frame):
         pass
