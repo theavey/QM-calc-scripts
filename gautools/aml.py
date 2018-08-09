@@ -38,12 +38,14 @@ import json
 import logging
 import MDAnalysis as mda
 import numpy as np
+import os
 import paratemp
 try:
     import pathlib
 except ImportError:
     import pathlib2 as pathlib
 import signal
+import thtools
 from . import tools
 
 
@@ -84,6 +86,27 @@ class Calc(object):
         self.log = logging.getLogger('{}.log'.format(self._base_name))
         self._json_name = '{}.json'.format(self._base_name)
         self._status = StatusDict(self._json_name)
+        self.mem, self.node, self.last_node = None, None, None
+
+    @property
+    def status(self):
+        return self._status
+
+    def _startup_tasks(self):
+        self.mem = thtools.job_tools.get_node_mem()
+        node = os.environ['HOSTNAME'].split('.')[0]
+        self.node = node
+        n_slots = int(os.environ['NSLOTS'])
+        self.log.info('Running on {} using {} cores and up to {} GB '
+                      'mem'.format(node, n_slots, self.mem))
+        if self.status:
+            self.last_node = self.status['current_node']
+            self.status['last_node'] = self.last_node
+            node_list = self.status['node_list']
+        else:
+            node_list = []
+        self.status['node_list'] = node_list + [node]
+        self.status['current_node'] = node
 
     def run_calc(self):
         """
@@ -91,7 +114,7 @@ class Calc(object):
 
         :return:
         """
-        # TODO: catch job-ending warning here?
+        self._startup_tasks()
         signal.signal(signal.SIGUSR2, self.resub_calc)
         if self.status:
             self.log.info('loaded previous status file: {}'.format(
@@ -101,9 +124,6 @@ class Calc(object):
             self.log.warning('No previous status file found. '
                              'Starting new calculation?')
             self.new_calc()
-
-    def resume_calc(self):
-        pass
 
     def _make_rand_xyz(self):
         u = paratemp.Universe(self.top, self.traj)
@@ -133,13 +153,17 @@ class Calc(object):
         )
         self.log.info('Wrote Gaussian input for '
                       'first job to {}'.format(com_name))
+        self.status['g_in_0'] = com_name
+        self._run_gaussian(com_name)
+
+    def _run_gaussian(self, com_name):
+        pass
 
     def resub_calc(self, signum, frame):
         pass
 
-    @property
-    def status(self):
-        return self._status
+    def resume_calc(self):
+        pass
 
 
 class StatusDict(dict):
@@ -155,7 +179,7 @@ class StatusDict(dict):
     an empty dict.
     """
     def __init__(self, path):
-        self.path = path
+        self.path = pathlib.Path(path).resolve()
         if pathlib.Path(path).is_file():
             d = json.load(open(path, 'r'))
             super(StatusDict, self).__init__(d)
