@@ -45,6 +45,7 @@ try:
 except ImportError:
     import pathlib2 as pathlib
 import signal
+import subprocess
 import thtools
 from . import tools
 
@@ -82,11 +83,13 @@ class Calc(object):
         # Could then give these defaults, and if it's a continuation, just load
         # all the arguments from disk. Need to think about how this will
         # be used, exactly
-        self._base_name = '{}-{}'.format(base_name, ind)
+        self._base_name = '{}-ind{}'.format(base_name, ind)
         self.log = logging.getLogger('{}.log'.format(self._base_name))
         self._json_name = '{}.json'.format(self._base_name)
         self._status = StatusDict(self._json_name)
-        self.mem, self.node, self.last_node = None, None, None
+        self.mem, self.node,  = None, None
+        self.n_slots, self.last_node = None, None
+        self.proc = None
 
     @property
     def status(self):
@@ -97,6 +100,7 @@ class Calc(object):
         node = os.environ['HOSTNAME'].split('.')[0]
         self.node = node
         n_slots = int(os.environ['NSLOTS'])
+        self.n_slots = n_slots
         self.log.info('Running on {} using {} cores and up to {} GB '
                       'mem'.format(node, n_slots, self.mem))
         if self.status:
@@ -115,7 +119,6 @@ class Calc(object):
         :return:
         """
         self._startup_tasks()
-        signal.signal(signal.SIGUSR2, self.resub_calc)
         if self.status:
             self.log.info('loaded previous status file: {}'.format(
                 self._json_name))
@@ -143,7 +146,7 @@ class Calc(object):
     def new_calc(self):
         self._make_rand_xyz()
         bn = self._base_name
-        com_name = bn + '-0.com'
+        com_name = bn + '-lvl0.com'
         tools.use_gen_template(
             out_file=com_name,
             xyz=bn + '.xyz',
@@ -157,12 +160,48 @@ class Calc(object):
         self._run_gaussian(com_name)
 
     def _run_gaussian(self, com_name):
+        # TODO either this will cd and copy over rwf/chk or that needs to be
+        # done already. Can copy them before and then use cwd argument
+        out_name = com_name.replace('com', 'out')
+        signal.signal(signal.SIGUSR2, self._signal_catch)
+        cl = ['g16',
+              '-m="{}GB"'.format(self.mem),
+              '-c="0-{}"'.format(self.n_slots-1),
+              '<{}'.format(com_name),  # TODO use stdin and stdout
+              '>{}'.format(com_name.replace('com', 'out'))]
+        killed = False
+        with open(com_name, 'r') as f_in, open(out_name, 'w') as f_out:
+            try:
+                self.log.info('Starting Gaussian with input {} and writing '
+                              'output to {}'.format(com_name, out_name))
+                proc = subprocess.Popen(cl, stdin=f_in, stdout=f_out)
+                self.log.info('Started Gaussian; waiting for it to finish or '
+                              'timeout')
+                signal.pause()  # This won't stop if the process finishes!
+            except self.TimesUp:
+                killed = True
+                proc.terminate()
+                self.log.info('Gaussian process terminated because of SIGUSR2')
+        if killed:
+            self.status['calc_cutoff'] = True
+            self.resub_calc()
+        else:
+            # self.log.info('')
+            self.status['calc_cutoff'] = False
         pass
 
-    def resub_calc(self, signum, frame):
+    def _signal_catch(self, signum, frame):
+        self.log.warning('Caught SIGUSR2 signal! Trying to quit Gaussian '
+                         'and resubmit continuation calculation')
+        raise self.TimesUp
+
+    def resub_calc(self):
         pass
 
     def resume_calc(self):
+        pass
+
+    class TimesUp(Exception):
         pass
 
 
