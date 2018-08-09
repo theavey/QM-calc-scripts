@@ -83,8 +83,7 @@ class Calc(object):
         self._base_name = '{}-{}'.format(base_name, ind)
         self.log = logging.getLogger('{}.log'.format(self._base_name))
         self._json_name = '{}.json'.format(self._base_name)
-        self.status = json.load(open(self._json_name, 'r')) if pathlib.Path(
-            self._json_name).is_file() else dict()
+        self._status = StatusDict(self._json_name)
 
     def run_calc(self):
         """
@@ -111,6 +110,7 @@ class Calc(object):
         u.read_data()
         frames = u.select_frames(self.criteria, 'QM_frames')
         select = np.random.choice(frames)
+        self.status['source_frame_num'] = select
         system = u.select_atoms('all')
         xyz_name = self._base_name + '.xyz'
         with mda.Writer(xyz_name, system.n_atoms) as w:
@@ -118,6 +118,7 @@ class Calc(object):
             w.write(system)
         self.log.info('Wrote xyz file from frame {} to {}'.format(select,
                                                                   xyz_name))
+        self.status['original_xyz'] = xyz_name
 
     def new_calc(self):
         self._make_rand_xyz()
@@ -135,3 +136,32 @@ class Calc(object):
 
     def resub_calc(self, signum, frame):
         pass
+
+    @property
+    def status(self):
+        return self._status
+
+
+class StatusDict(dict):
+    """
+    A dict subclass that writes the dict to disk every time a value gets set
+
+    Note, any other action on the dict will not currently trigger a write to
+    disk.
+
+    The dict will be written in JSON to the path given at instantiation. If
+    there is already a file at that path, it will be read and used as
+    the initial definition of the dict. Otherwise, it will be instantiated as
+    an empty dict.
+    """
+    def __init__(self, path):
+        self.path = path
+        if pathlib.Path(path).is_file():
+            d = json.load(open(path, 'r'))
+            super(StatusDict, self).__init__(d)
+        else:
+            super(StatusDict, self).__init__()
+
+    def __setitem__(self, key, value):
+        super(StatusDict, self).__setitem__(key, value)
+        json.dump(self, open(self.path, 'w'))
