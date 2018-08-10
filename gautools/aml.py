@@ -189,7 +189,8 @@ class Calc(object):
         killed = False
         with com_path.open('r') as f_in, out_path.open('w') as f_out:
             self.log.info('Starting Gaussian with input {} and writing '
-                          'output to {}'.format(com_name, out_name))
+                          'output to {}'.format(com_name, out_name))  # TODO fix
+            # TODO link checkpoint and such (maybe not in this function)
             proc = subprocess.Popen(cl, stdin=f_in, stdout=f_out,
                                     cwd=self.scratch_path)
             self.log.info('Started Gaussian; waiting for it to finish or '
@@ -207,9 +208,12 @@ class Calc(object):
             self.status['calc_cutoff'] = True
             self.resub_calc()
             self.log.info('Resubmitted. Exiting this job')
-            sys.exit('Exiting because job timeout')
+            # TODO copy back file(s) (maybe not here?)
+            # TODO remove links to files (maybe not here?)
+            sys.exit('Exiting because job timeout')  # probably don't do this
         else:
             self.status['calc_cutoff'] = False
+            # TODO copy back files (maybe not here?)
             self._check_normal_completion(out_path)
         pass
 
