@@ -171,7 +171,18 @@ class Calc(object):
         self.log.info('Wrote Gaussian input for '
                       'first job to {}'.format(com_name))
         self.status['g_in_0'] = com_name
-        self._run_gaussian(com_name)
+        killed = self._run_gaussian(com_name)
+        if killed:
+            self.status['calc_cutoff'] = True
+            self.resub_calc()
+            self.log.info('Resubmitted. Exiting this job')
+            # TODO copy back file(s) (maybe not here?)
+            # TODO remove links to files (maybe not here?)
+            sys.exit('Exiting because job timeout')  # probably don't do this
+        else:
+            self.status['calc_cutoff'] = False
+            # TODO copy back files (maybe not here?)
+            self._check_normal_completion(out_path)
 
     def _run_gaussian(self, com_name):
         # TODO rwf/chk needs to be copied over
@@ -189,7 +200,7 @@ class Calc(object):
         killed = False
         with com_path.open('r') as f_in, out_path.open('w') as f_out:
             self.log.info('Starting Gaussian with input {} and writing '
-                          'output to {}'.format(com_name, out_name))  # TODO fix
+                          'output to {}'.format(com_path, out_path))
             # TODO link checkpoint and such (maybe not in this function)
             proc = subprocess.Popen(cl, stdin=f_in, stdout=f_out,
                                     cwd=self.scratch_path)
@@ -204,18 +215,7 @@ class Calc(object):
                 self.log.info('Gaussian process terminated because of SIGUSR2')
             except self.GaussianDone:
                 self.log.info('Gaussian process completed')
-        if killed:
-            self.status['calc_cutoff'] = True
-            self.resub_calc()
-            self.log.info('Resubmitted. Exiting this job')
-            # TODO copy back file(s) (maybe not here?)
-            # TODO remove links to files (maybe not here?)
-            sys.exit('Exiting because job timeout')  # probably don't do this
-        else:
-            self.status['calc_cutoff'] = False
-            # TODO copy back files (maybe not here?)
-            self._check_normal_completion(out_path)
-        pass
+        return killed
 
     def _signal_catch_time(self, signum, frame):
         self.log.warning('Caught SIGUSR2 signal! Trying to quit Gaussian '
