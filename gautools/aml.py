@@ -46,6 +46,7 @@ except ImportError:
     import pathlib2 as pathlib
 import signal
 import subprocess
+import sys
 import threading
 import thtools
 import time
@@ -89,18 +90,21 @@ class Calc(object):
         self.log = logging.getLogger('{}.log'.format(self._base_name))
         self._json_name = '{}.json'.format(self._base_name)
         self._status = StatusDict(self._json_name)
-        self.mem, self.node  = None, None
-        self.n_slots, self.last_node = None, None
-        self.proc = None
+        self.mem, self.node, self.scratch_path = None, None, None
+        self.last_scratch_path, self.n_slots, self.last_node = None, None, None
+        self.cwd_path = None
 
     @property
     def status(self):
         return self._status
 
     def _startup_tasks(self):
-        self.mem = thtools.job_tools.get_node_mem()
         node = os.environ['HOSTNAME'].split('.')[0]
         self.node = node
+        scratch_path = pathlib.Path('/net/{}/scratch/theavey'.format(node))
+        scratch_path.mkdir(exist_ok=True)
+        self.scratch_path = scratch_path
+        self.mem = thtools.job_tools.get_node_mem()
         n_slots = int(os.environ['NSLOTS'])
         self.n_slots = n_slots
         self.log.info('Running on {} using {} cores and up to {} GB '
@@ -109,10 +113,18 @@ class Calc(object):
             self.last_node = self.status['current_node']
             self.status['last_node'] = self.last_node
             node_list = self.status['node_list']
+            self.last_scratch_path = pathlib.Path(self.status[
+                                                      'current_scratch_dir'])
+            self.status['last_scratch_dir'] = str(self.last_scratch_path)
         else:
             node_list = []
         self.status['node_list'] = node_list + [node]
         self.status['current_node'] = node
+        self.status['current_scratch_dir'] = str(scratch_path)
+        self.cwd_path = pathlib.Path('.').resolve()
+        self.status['cwd'] = str(self.cwd_path)
+        self.log.info('Submitted from {} and will be running in {}'.format(
+            self.cwd_path, self.scratch_path))
 
     def run_calc(self):
         """
@@ -162,35 +174,43 @@ class Calc(object):
         self._run_gaussian(com_name)
 
     def _run_gaussian(self, com_name):
-        # TODO either this will cd and copy over rwf/chk or that needs to be
-        # done already. Can copy them before and then use cwd argument
+        # TODO rwf/chk needs to be copied over
         out_name = com_name.replace('com', 'out')
+        com_path: pathlib.Path = self.cwd_path.joinpath(com_name)
+        if not com_path.exists():
+            raise FileNotFoundError('Gaussian input {} not found in '
+                                    '{}'.format(com_name, self.cwd_path))
+        out_path: pathlib.Path = self.scratch_path.joinpath(out_name)
         signal.signal(signal.SIGUSR2, self._signal_catch_time)
         signal.signal(signal.SIGUSR1, self._signal_catch_done)
         cl = ['g16',
               '-m="{}GB"'.format(self.mem),
               '-c="0-{}"'.format(self.n_slots-1), ]
         killed = False
-        with open(com_name, 'r') as f_in, open(out_name, 'w') as f_out:
+        with com_path.open('r') as f_in, out_path.open('w') as f_out:
+            self.log.info('Starting Gaussian with input {} and writing '
+                          'output to {}'.format(com_name, out_name))
+            proc = subprocess.Popen(cl, stdin=f_in, stdout=f_out,
+                                    cwd=self.scratch_path)
+            self.log.info('Started Gaussian; waiting for it to finish or '
+                          'timeout')
             try:
-                self.log.info('Starting Gaussian with input {} and writing '
-                              'output to {}'.format(com_name, out_name))
-                proc = subprocess.Popen(cl, stdin=f_in, stdout=f_out)
-                self.log.info('Started Gaussian; waiting for it to finish or '
-                              'timeout')
                 threading.Thread(target=self._check_proc, args=(proc,))
                 signal.pause()
             except self.TimesUp:
                 killed = True
-                proc.terminate()
+                proc.terminate()  # Should be within `with` clause?
                 self.log.info('Gaussian process terminated because of SIGUSR2')
             except self.GaussianDone:
                 self.log.info('Gaussian process completed')
         if killed:
             self.status['calc_cutoff'] = True
             self.resub_calc()
+            self.log.info('Resubmitted. Exiting this job')
+            sys.exit('Exiting because job timeout')
         else:
             self.status['calc_cutoff'] = False
+            self._check_normal_completion(out_path)
         pass
 
     def _signal_catch_time(self, signum, frame):
@@ -199,7 +219,7 @@ class Calc(object):
         raise self.TimesUp
 
     def _signal_catch_done(self, signum, frame):
-        self.log.warning('Caught SIGUSR1 signal! Likely, this was because '
+        self.log.warning('/ Caught SIGUSR1 signal! Likely, this was because '
                          'Gaussian process exited')
         raise self.GaussianDone
 
@@ -207,7 +227,10 @@ class Calc(object):
         while proc.poll() is None:
             time.sleep(15)
         self.log.warning('Gaussian process completed. Sending SIGUSR1')
-        os.kill(os.getpgid(), signal.SIGUSR1)
+        os.kill(os.getpid(), signal.SIGUSR1)
+
+    def _check_normal_completion(self, filepath):
+        pass
 
     def resub_calc(self):
         pass
