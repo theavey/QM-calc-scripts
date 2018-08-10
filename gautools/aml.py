@@ -46,7 +46,9 @@ except ImportError:
     import pathlib2 as pathlib
 import signal
 import subprocess
+import threading
 import thtools
+import time
 from . import tools
 
 
@@ -87,7 +89,7 @@ class Calc(object):
         self.log = logging.getLogger('{}.log'.format(self._base_name))
         self._json_name = '{}.json'.format(self._base_name)
         self._status = StatusDict(self._json_name)
-        self.mem, self.node,  = None, None
+        self.mem, self.node  = None, None
         self.n_slots, self.last_node = None, None
         self.proc = None
 
@@ -163,12 +165,11 @@ class Calc(object):
         # TODO either this will cd and copy over rwf/chk or that needs to be
         # done already. Can copy them before and then use cwd argument
         out_name = com_name.replace('com', 'out')
-        signal.signal(signal.SIGUSR2, self._signal_catch)
+        signal.signal(signal.SIGUSR2, self._signal_catch_time)
+        signal.signal(signal.SIGUSR1, self._signal_catch_done)
         cl = ['g16',
               '-m="{}GB"'.format(self.mem),
-              '-c="0-{}"'.format(self.n_slots-1),
-              '<{}'.format(com_name),  # TODO use stdin and stdout
-              '>{}'.format(com_name.replace('com', 'out'))]
+              '-c="0-{}"'.format(self.n_slots-1), ]
         killed = False
         with open(com_name, 'r') as f_in, open(out_name, 'w') as f_out:
             try:
@@ -177,23 +178,36 @@ class Calc(object):
                 proc = subprocess.Popen(cl, stdin=f_in, stdout=f_out)
                 self.log.info('Started Gaussian; waiting for it to finish or '
                               'timeout')
-                signal.pause()  # This won't stop if the process finishes!
+                threading.Thread(target=self._check_proc, args=(proc,))
+                signal.pause()
             except self.TimesUp:
                 killed = True
                 proc.terminate()
                 self.log.info('Gaussian process terminated because of SIGUSR2')
+            except self.GaussianDone:
+                self.log.info('Gaussian process completed')
         if killed:
             self.status['calc_cutoff'] = True
             self.resub_calc()
         else:
-            # self.log.info('')
             self.status['calc_cutoff'] = False
         pass
 
-    def _signal_catch(self, signum, frame):
+    def _signal_catch_time(self, signum, frame):
         self.log.warning('Caught SIGUSR2 signal! Trying to quit Gaussian '
                          'and resubmit continuation calculation')
         raise self.TimesUp
+
+    def _signal_catch_done(self, signum, frame):
+        self.log.warning('Caught SIGUSR1 signal! Likely, this was because '
+                         'Gaussian process exited')
+        raise self.GaussianDone
+
+    def _check_proc(self, proc):
+        while proc.poll() is None:
+            time.sleep(15)
+        self.log.warning('Gaussian process completed. Sending SIGUSR1')
+        os.kill(os.getpgid(), signal.SIGUSR1)
 
     def resub_calc(self):
         pass
@@ -202,6 +216,9 @@ class Calc(object):
         pass
 
     class TimesUp(Exception):
+        pass
+
+    class GaussianDone(Exception):
         pass
 
 
