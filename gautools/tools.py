@@ -105,6 +105,9 @@ def use_gen_template(out_file, xyz, job_name='default job name',
 
     :type nproc: int or str
     :param nproc: Default: 16. Number of processors to tell Gaussian to use.
+        Note, this now uses the newer '%cpu' syntax, and I'm not sure how
+        that will work using fewer than all CPUs on the node because it says
+        to use 0 to nproc-1.
 
     :type mem: int or str
     :param mem: Default: 125. Number of gigabytes of memory to tell Gaussian
@@ -144,7 +147,7 @@ def use_gen_template(out_file, xyz, job_name='default job name',
         td = ''
     d_fill = dict(job_name=job_name,
                   checkpoint=checkpoint,
-                  nproc=str(nproc), mem=str(mem),
+                  nproc=str(int(nproc)-1), mem=str(mem),
                   opt=opt, td=td,
                   func=func, basis=basis,
                   charg_mult=charg_mult)
