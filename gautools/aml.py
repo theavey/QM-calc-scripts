@@ -40,6 +40,7 @@ import MDAnalysis as mda
 import numpy as np
 import os
 import paratemp
+from paratemp.geometries import XYZ
 try:
     import pathlib
 except ImportError:
@@ -55,7 +56,8 @@ from . import tools
 
 class Calc(object):
 
-    def __init__(self, base_name, ind, top, traj, criteria, ugt_dicts):
+    def __init__(self, base_name, ind, top, traj, criteria,
+                 react_dist, ugt_dicts):
         """
 
         :param str base_name:
@@ -72,15 +74,21 @@ class Calc(object):
             For example, `{'c1_c2': (1.5, 4.0), 'c1_c3': (2.2, 5.1)}` will
             select frames where 'c1_c2' is between 1.5 and 4.0 and 'c1_c3'
             is between 2.2 and 5.1.
+        :type react_dist: str or float
+        :param react_dist: Distance to set between the two reacting atoms (
+            with indices 20 and 39).
+            If this argument as given evaluates to False, no movement/changes
+            to the geometry will be made.
         :param List[dict] ugt_dicts:
         :return:
         """
         # TODO: get ind (index) from SGE_TASK_ID?
         # do this if not given, and save it to args for passing on?
-        self.args = base_name, ind, top, traj, criteria, ugt_dicts
+        self.args = base_name, ind, top, traj, criteria, react_dist, ugt_dicts
         self.top = top
         self.traj = traj
         self.criteria = criteria
+        self.react_dist = react_dist
         self.ugt_dicts = ugt_dicts
         # TODO: save args to disk?
         # Could then give these defaults, and if it's a continuation, just load
@@ -92,7 +100,7 @@ class Calc(object):
         self._status = StatusDict(self._json_name)
         self.mem, self.node, self.scratch_path = None, None, None
         self.last_scratch_path, self.n_slots, self.last_node = None, None, None
-        self.cwd_path = None
+        self.cwd_path, self.output_scratch_path = None, None
 
     @property
     def status(self):
@@ -155,7 +163,19 @@ class Calc(object):
             w.write(system)
         self.log.info('Wrote xyz file from frame {} to {}'.format(select,
                                                                   xyz_name))
-        self.status['original_xyz'] = xyz_name
+        if self.react_dist:
+            paratemp.copy_no_overwrite(xyz_name, xyz_name+'.bak')
+            self.log.info('Copied original geometry to {}'.format(
+                xyz_name+'.bak'))
+            xyz = XYZ(xyz_name)
+            direction = (xyz.coords[20] - xyz.coords[39]).norm()
+            xyz.coords[20] = xyz.coords[39] + self.react_dist * direction
+            xyz.write(xyz_name)
+            self.log.info('Moved reactant atoms 20 and 39 to a distance of {} '
+                          'and wrote this to {}'.format(self.react_dist,
+                                                        xyz_name))
+            self.status['original_xyz'] = xyz_name + '.bak'
+        self.status['starting_xyz'] = xyz_name
 
     def new_calc(self):
         self._make_rand_xyz()
@@ -166,6 +186,7 @@ class Calc(object):
             xyz=bn + '.xyz',
             job_name=bn,
             checkpoint=bn + '.chk',
+            nproc=self.n_slots, mem=self.mem,
             **self.ugt_dicts[0]
         )
         self.log.info('Wrote Gaussian input for '
@@ -182,7 +203,7 @@ class Calc(object):
         else:
             self.status['calc_cutoff'] = False
             # TODO copy back files (maybe not here?)
-            self._check_normal_completion(out_path)
+            self._check_normal_completion(self.output_scratch_path)
 
     def _run_gaussian(self, com_name):
         # TODO rwf/chk needs to be copied over
@@ -192,11 +213,10 @@ class Calc(object):
             raise FileNotFoundError('Gaussian input {} not found in '
                                     '{}'.format(com_name, self.cwd_path))
         out_path: pathlib.Path = self.scratch_path.joinpath(out_name)
+        self.output_scratch_path = out_path
         signal.signal(signal.SIGUSR2, self._signal_catch_time)
         signal.signal(signal.SIGUSR1, self._signal_catch_done)
-        cl = ['g16',
-              '-m="{}GB"'.format(self.mem),
-              '-c="0-{}"'.format(self.n_slots-1), ]
+        cl = ['g16', ]
         killed = False
         with com_path.open('r') as f_in, out_path.open('w') as f_out:
             self.log.info('Starting Gaussian with input {} and writing '
