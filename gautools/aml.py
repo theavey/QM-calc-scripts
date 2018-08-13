@@ -168,7 +168,8 @@ class Calc(object):
             self.log.info('Copied original geometry to {}'.format(
                 xyz_name+'.bak'))
             xyz = XYZ(xyz_name)
-            direction = (xyz.coords[20] - xyz.coords[39]).norm()
+            diff = xyz.coords[20] - xyz.coords[39]
+            direction = diff / np.linalg.norm(diff)
             xyz.coords[20] = xyz.coords[39] + self.react_dist * direction
             xyz.write(xyz_name)
             self.log.info('Moved reactant atoms 20 and 39 to a distance of {} '
