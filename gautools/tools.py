@@ -80,6 +80,7 @@ def fix_atom_names_xyz(xyz, dry_run=False, return_list=False):
 
 def use_gen_template(out_file, xyz, job_name='default job name',
                      checkpoint='checkpoint.chk',
+                     rwf='readwrite.rwf',
                      nproc=16, mem=125,
                      opt='opt', td=False,
                      func='wb97xd', basis='6-31g(d)',
@@ -102,6 +103,9 @@ def use_gen_template(out_file, xyz, job_name='default job name',
 
     :param str checkpoint: Default: 'checkpoint.cpt'. File name for the
         checkpoint file.
+
+    :param str rwf: Default: 'readwrite.rwf'. File name for the read-write
+        file.
 
     :type nproc: int or str
     :param nproc: Default: 16. Number of processors to tell Gaussian to use.
@@ -146,7 +150,7 @@ def use_gen_template(out_file, xyz, job_name='default job name',
     else:
         td = ''
     d_fill = dict(job_name=job_name,
-                  checkpoint=checkpoint,
+                  checkpoint=checkpoint, rwf=rwf,
                   nproc=str(int(nproc)-1), mem=str(mem),
                   opt=opt, td=td,
                   func=func, basis=basis,
