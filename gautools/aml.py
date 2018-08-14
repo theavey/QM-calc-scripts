@@ -41,10 +41,9 @@ import numpy as np
 import os
 import paratemp
 from paratemp.geometries import XYZ
-try:
-    import pathlib
-except ImportError:
-    import pathlib2 as pathlib
+import pathlib
+import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -52,6 +51,9 @@ import threading
 import thtools
 import time
 from . import tools
+
+if not sys.version_info >= (3, 6):
+    raise ValueError('Python >= 3.6 is required')
 
 
 class Calc(object):
@@ -98,9 +100,12 @@ class Calc(object):
         self.log = logging.getLogger('{}.log'.format(self._base_name))
         self._json_name = '{}.json'.format(self._base_name)
         self._status = StatusDict(self._json_name)
-        self.mem, self.node, self.scratch_path = None, None, None
-        self.last_scratch_path, self.n_slots, self.last_node = None, None, None
-        self.cwd_path, self.output_scratch_path = None, None
+        self.mem, self.node = None, None
+        self.scratch_path: pathlib.Path = None
+        self.last_scratch_path: pathlib.Path = None
+        self.n_slots, self.last_node = None, None
+        self.cwd_path: pathlib.Path = None
+        self.output_scratch_path: pathlib.Path = None
 
     @property
     def status(self):
@@ -177,34 +182,39 @@ class Calc(object):
                                                         xyz_name))
             self.status['original_xyz'] = xyz_name + '.bak'
         self.status['starting_xyz'] = xyz_name
+        return pathlib.Path(xyz_name).resolve()
 
     def new_calc(self):
-        self._make_rand_xyz()
+        xyz_path = self._make_rand_xyz()
         bn = self._base_name
-        com_name = bn + '-lvl0.com'
+        com_name = f'{bn}-lvl0.com'
         tools.use_gen_template(
             out_file=com_name,
-            xyz=bn + '.xyz',
+            xyz=str(xyz_path),
             job_name=bn,
-            checkpoint=bn + '.chk',
+            checkpoint=f'{bn}.chk',
+            rwf=f'{bn}.rwf',
             nproc=self.n_slots, mem=self.mem,
             **self.ugt_dicts[0]
         )
         self.log.info('Wrote Gaussian input for '
-                      'first job to {}'.format(com_name))
+                      f'first job to {com_name}')
         self.status['g_in_0'] = com_name
+        chk_ln_path = pathlib.Path(f'{bn}-running.chk')
+        chk_ln_path.symlink_to(self.scratch_path.joinpath(f'{bn}.chk'))
+        self.log.info(f'Linked checkpoint file as {chk_ln_path.resolve()}')
         killed = self._run_gaussian(com_name)
         if killed:
             self.status['calc_cutoff'] = True
             self.resub_calc()
             self.log.info('Resubmitted. Exiting this job')
-            # TODO copy back file(s) (maybe not here?)
-            # TODO remove links to files (maybe not here?)
+            chk_ln_path.unlink()
             sys.exit('Exiting because job timeout')  # probably don't do this
         else:
             self.status['calc_cutoff'] = False
             # TODO copy back files (maybe not here?)
             self._check_normal_completion(self.output_scratch_path)
+        self._copy_back_files(com_name, killed)
 
     def _run_gaussian(self, com_name):
         # TODO rwf/chk needs to be copied over
@@ -253,6 +263,21 @@ class Calc(object):
             time.sleep(15)
         self.log.warning('Gaussian process completed. Sending SIGUSR1')
         os.kill(os.getpid(), signal.SIGUSR1)
+
+    def _copy_back_files(self, com_name: str, killed: bool):
+        if not killed:
+            out_path = pathlib.Path(com_name.replace('com', 'out'))
+        else:
+            outs = list(self.cwd_path.glob(com_name[:-4]+'-*.out'))
+            outs.sort()
+            outs.sort(key=len)
+            new_out = re.sub(r'(\d+)\.out',
+                             lambda m: f'{int(m.group(1))+1)}.out',
+                             outs[-1])
+            out_path = pathlib.Path(new_out)
+        paratemp.copy_no_overwrite(self.output_scratch_path, out_path)
+        chk_name = f'{self._base_name}.chk'
+        shutil.copy(self.output_scratch_path.joinpath(chk_name), chk_name)
 
     def _check_normal_completion(self, filepath):
         pass
