@@ -84,8 +84,7 @@ class Calc(object):
         :param List[dict] ugt_dicts:
         :return:
         """
-        # TODO: get ind (index) from SGE_TASK_ID?
-        # do this if not given, and save it to args for passing on?
+        # TODO take status arg and set other args from this
         self.args = base_name, ind, top, traj, criteria, react_dist, ugt_dicts
         self.top = top
         self.traj = traj
@@ -212,12 +211,10 @@ class Calc(object):
             sys.exit('Exiting because job timeout')  # probably don't do this
         else:
             self.status['calc_cutoff'] = False
-            # TODO copy back files (maybe not here?)
             self._check_normal_completion(self.output_scratch_path)
         self._copy_back_files(com_name, killed)
 
     def _run_gaussian(self, com_name):
-        # TODO rwf/chk needs to be copied over
         out_name = com_name.replace('com', 'out')
         com_path: pathlib.Path = self.cwd_path.joinpath(com_name)
         if not com_path.exists():
@@ -232,7 +229,6 @@ class Calc(object):
         with com_path.open('r') as f_in, out_path.open('w') as f_out:
             self.log.info('Starting Gaussian with input {} and writing '
                           'output to {}'.format(com_path, out_path))
-            # TODO link checkpoint and such (maybe not in this function)
             proc = subprocess.Popen(cl, stdin=f_in, stdout=f_out,
                                     cwd=self.scratch_path)
             self.log.info('Started Gaussian; waiting for it to finish or '
@@ -286,6 +282,7 @@ class Calc(object):
         pass
 
     def resume_calc(self):
+        # TODO rwf/chk needs to be copied over
         pass
 
     class TimesUp(Exception):
@@ -318,3 +315,52 @@ class StatusDict(dict):
     def __setitem__(self, key, value):
         super(StatusDict, self).__setitem__(key, value)
         json.dump(self, open(self.path, 'w'))
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', '--base_name', type=str, required=True,
+                        help='base name for this calculation, likely not '
+                             'including any index')
+    parser.add_argument('-i', '--index', type=int,
+                        help='index of this calculation')
+    parser.add_argument('-c', '--top', type=str,
+                        help='topology/structure file (e.g., .gro, .xyz)')
+    parser.add_argument('-f', '--trajectory', type=str,
+                        help='trajectory file (e.g., .xtc, .trr, .dcd)')
+
+    def parse_crit(kvv):
+        k, vv = kvv.split('=')
+        vs = (int(v) for v in vv.split(','))
+        return k, vs
+
+    parser.add_argument('-s', '--criteria', action='append',
+                        type=parse_crit, metavar='key=min,max',
+                        help='criteria for selection of possible frames from '
+                             'the trajectory. To provide more than one '
+                             'criterion, use this argument multiple times')
+    parser.add_argument('-d', '--react_dist', type=float, default=False,
+                        help='Distance to set between atoms 20 and 39, '
+                             'in angstroms. If this evaluates to False, '
+                             'no changes to the geometry will be made')
+    parser.add_argument('-g', '--ugt_dicts', type=str, required=True,
+                        help='path to json file that parses to a list of '
+                             'dicts of arguments for use_gen_template in '
+                             'order to create inputs to Gaussian')
+    parser.add_argument('--restart', default=None,
+                        help='Path to status file for resuming an already '
+                             'started calculation')
+    args = parser.parse_args()
+    if args.restart is not None:
+        calc = Calc(status=args.restart)
+    else:
+        calc = Calc(base_name=args.base_name,
+                    ind=args.index,
+                    top=args.top,
+                    traj=args.trajectory,
+                    criteria=dict(args.criteria),
+                    react_dist=args.react_dist,
+                    ugt_dicts=json.load(open(args.ugt_dicts, 'r'))
+                    )
+    calc.run_calc()
