@@ -329,6 +329,47 @@ class StatusDict(dict):
     there is already a file at that path, it will be read and used as
     the initial definition of the dict. Otherwise, it will be instantiated as
     an empty dict.
+
+    Keys in dictionary:
+
+    * args: a Dict of the arguments given when starting the calculation.
+
+    * current_node: Name of the node on which the job is currently running.
+    This is set during :func:`Calc._startup_tasks`. It should be formatted as
+    'scc-xxx' (e.g., 'scc-na1').
+
+    * last_node: This is set during :func:`Calc._startup_tasks` if it's a
+    restarted calculation. It will be set from the last 'current_node'.
+
+    * node_list: This is a list of past and current nodes on which this
+    calculation has run.
+
+    * current_scratch_dir: str of the absolute path to the scratch directory
+    on the current node.
+
+    * base_name: the base name for this calculation including the index of
+    this calculation.
+
+    * cwd: str of the absolute path from which the current calculation was
+    submitted.
+
+    * last_scratch_dir: str of the absolute path to the scratch directory
+    from which the last job was run, if this is not a new calculation.
+
+    * source_frame_num: The index of the frame in the trajectory that was
+    used to create the initial configuration.
+
+    * original_xyz: str of the name of file with the coordinates as they were
+    taken from the trajectory, before moving the reacting atoms to the
+    correct distance. This will not be set if no distance correction is made.
+
+    * starting_xyz: str of the name of the file with the coordinates for
+    starting the calculation, before any optimization.
+
+    * g_in_0: str of the name of the file with the initial input to Gaussian.
+    * calc_cutoff: bool of whether the job finished or if it was cutoff
+    because of running out of time.
+
     """
     def __init__(self, path):
         self.path = pathlib.Path(path).resolve()
