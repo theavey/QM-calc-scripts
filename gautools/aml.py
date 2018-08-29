@@ -58,10 +58,13 @@ if not sys.version_info >= (3, 6):
 
 class Calc(object):
 
-    def __init__(self, base_name, ind, top, traj, criteria,
-                 react_dist, ugt_dicts):
+    def __init__(self, status=None, base_name=None, ind=None, top=None,
+                 traj=None, criteria=None, react_dist=None, ugt_dicts=None):
         """
 
+        :param str status: The path to the status file to be read for a
+            calculation restart. If this is not a restarted job, this should
+            be None (the default).
         :param str base_name:
         :param int ind:
         :type top: pathlib.Path or str
@@ -84,21 +87,36 @@ class Calc(object):
         :param List[dict] ugt_dicts:
         :return:
         """
-        # TODO take status arg and set other args from this
-        self.args = base_name, ind, top, traj, criteria, react_dist, ugt_dicts
+        if status is not None:
+            self._status = StatusDict(status)
+            self._json_name = status
+            self.args = self.status['args']
+            a = self.args
+            base_name = a['base_name']
+            ind = a['ind']
+            top = a['top']
+            traj = a['traj']
+            criteria = a['criteria']
+            react_dist = a['react_dist']
+            ugt_dicts = a['ugt_dicts']
+            self._base_name = self.status['base_name']
+        else:
+            self.args = {
+                'base_name': base_name,
+                'ind': ind, 'top': top, 'traj': traj,
+                'criteria': criteria,
+                'react_dist': react_dist,
+                'ugt_dicts': ugt_dicts}
+            self.check_args()
+            self._base_name = '{}-ind{}'.format(base_name, ind)
+            self._json_name = '{}.json'.format(self._base_name)
+            self._status = StatusDict(self._json_name)
         self.top = top
         self.traj = traj
         self.criteria = criteria
         self.react_dist = react_dist
         self.ugt_dicts = ugt_dicts
-        # TODO: save args to disk?
-        # Could then give these defaults, and if it's a continuation, just load
-        # all the arguments from disk. Need to think about how this will
-        # be used, exactly
-        self._base_name = '{}-ind{}'.format(base_name, ind)
         self.log = logging.getLogger('{}.log'.format(self._base_name))
-        self._json_name = '{}.json'.format(self._base_name)
-        self._status = StatusDict(self._json_name)
         self.mem, self.node = None, None
         self.scratch_path: pathlib.Path = None
         self.last_scratch_path: pathlib.Path = None
@@ -109,6 +127,11 @@ class Calc(object):
     @property
     def status(self):
         return self._status
+
+    def check_args(self):
+        for key in self.args:
+            if self.args[key] is None:
+                raise ValueError(f'Argument "{key}" cannot be None')
 
     def _startup_tasks(self):
         node = os.environ['HOSTNAME'].split('.')[0]
@@ -129,6 +152,8 @@ class Calc(object):
                                                       'current_scratch_dir'])
             self.status['last_scratch_dir'] = str(self.last_scratch_path)
         else:
+            self.status['args'] = self.args
+            self.status['base_name'] = self._base_name
             node_list = []
         self.status['node_list'] = node_list + [node]
         self.status['current_node'] = node
@@ -144,8 +169,9 @@ class Calc(object):
 
         :return:
         """
+        rerun = True if self.status else False
         self._startup_tasks()
-        if self.status:
+        if rerun:
             self.log.info('loaded previous status file: {}'.format(
                 self._json_name))
             self.resume_calc()
