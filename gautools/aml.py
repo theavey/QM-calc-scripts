@@ -189,6 +189,7 @@ class Calc(object):
         system = u.select_atoms('all')
         xyz_name = self._base_name + '.xyz'
         with mda.Writer(xyz_name, system.n_atoms) as w:
+            # TODO deal with PBCs!!!!!
             u.trajectory[select]
             w.write(system)
         self.log.info('Wrote xyz file from frame {} to {}'.format(select,
