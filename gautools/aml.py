@@ -186,11 +186,14 @@ class Calc(object):
         frames = u.select_frames(self.criteria, 'QM_frames')
         select = np.random.choice(frames)
         self.status['source_frame_num'] = select
-        system = u.select_atoms('all')
+        system : mda.AtomGroup = u.select_atoms('all')
         xyz_name = self._base_name + '.xyz'
         with mda.Writer(xyz_name, system.n_atoms) as w:
-            # TODO deal with PBCs!!!!!
             u.trajectory[select]
+            for frag in u.fragments:
+                mda.lib.mdamath.make_whole(frag)
+                # This should at least make the molecules whole if not
+                # necessarily in the correct unit cell together.
             w.write(system)
         self.log.info('Wrote xyz file from frame {} to {}'.format(select,
                                                                   xyz_name))
