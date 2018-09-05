@@ -233,7 +233,6 @@ class Calc(object):
             self.status['calc_cutoff'] = True
             self.resub_calc()
             self.log.info('Resubmitted. Cleaning up this job')
-            chk_ln_path.unlink()
         else:
             self.status['calc_cutoff'] = False
             self._check_normal_completion(self.output_scratch_path)
@@ -242,6 +241,7 @@ class Calc(object):
             self.current_lvl += 1
             self.status['current_lvl'] = self.current_lvl
         self._copy_back_files(com_name, killed)
+        chk_ln_path.unlink()
         if not killed:
             self._next_calc()
 
@@ -365,18 +365,34 @@ class Calc(object):
 
     def resume_calc(self):
         # TODO write this
-        self._update_g_in_for_restart()
-        # TODO rwf/chk needs to be copied over
+        com_name = self._update_g_in_for_restart()
         self._copy_in_restart()
+        self.status['calc_cutoff'] = None
+        self._setup_and_run(com_name)
         pass
 
     def _copy_in_restart(self):
         # TODO write this
+        # TODO rwf/chk needs to be copied over
+        self.log.info(f'Copied rwf and chk files to node scratch dir: '
+                      f'{self.scratch_path}')
         pass
 
     def _update_g_in_for_restart(self):
-        # TODO write this
-        pass
+        com_name = self.status['g_in_curr']
+        lines = open(com_name, 'r').readlines()
+        paratemp.copy_no_overwrite(com_name, com_name+'.bak')
+        with open(com_name, 'w') as f_out:
+            for line in lines:
+                if '%mem=' in line:
+                    line = f'%mem={self.mem}GB\n'
+                elif line.startswith('#'):
+                    line = '# Restart\n'
+                f_out.write(line)
+        os.remove(pathlib.Path(com_name+'.bak'))
+        self.log.info(f'Updated Gaussian input to do a calculation restart '
+                      f'and to use all the memory on this node')
+        return com_name
 
     def _next_calc(self):
         xyz_path = pathlib.Path(self.status['g_in_curr']).with_suffix('xyz')
