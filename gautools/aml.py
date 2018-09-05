@@ -364,19 +364,26 @@ class Calc(object):
         raise ValueError('could not find requested runtime for this job')
 
     def resume_calc(self):
-        # TODO write this
         com_name = self._update_g_in_for_restart()
         self._copy_in_restart()
         self.status['calc_cutoff'] = None
         self._setup_and_run(com_name)
-        pass
 
     def _copy_in_restart(self):
-        # TODO write this
-        # TODO rwf/chk needs to be copied over
-        self.log.info(f'Copied rwf and chk files to node scratch dir: '
-                      f'{self.scratch_path}')
-        pass
+        bn = self._base_name
+        old_rwf_path = self.last_scratch_path.joinpath(f'{bn}.rwf')
+        if not old_rwf_path.exists():
+            raise FileNotFoundError('Could not find old rwf file at '
+                                    f'{old_rwf_path}')
+        old_chk_path = self.last_scratch_path.joinpath(f'{bn}.chk')
+        if not old_chk_path.exists():
+            raise FileNotFoundError('Could not find old chk file at '
+                                    f'{old_chk_path}')
+        shutil.copy(old_rwf_path, self.scratch_path)
+        shutil.copy(old_chk_path, self.scratch_path)
+        self.log.info(f'Copied rwf and chk files from last scratch '
+                      f'directory: {self.last_scratch_path}\nto node scratch '
+                      f'dir: {self.scratch_path}')
 
     def _update_g_in_for_restart(self):
         com_name = self.status['g_in_curr']
