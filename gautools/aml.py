@@ -380,8 +380,12 @@ class Calc(object):
 
     def _next_calc(self):
         xyz_path = pathlib.Path(self.status['g_in_curr']).with_suffix('xyz')
-        com_name = self._make_g_in(xyz_path)
-        self._setup_and_run(com_name)
+        try:
+            com_name = self._make_g_in(xyz_path)
+            self._setup_and_run(com_name)
+        except self.NoMoreLevels:
+            self.log.info('No more calculation levels to complete! Completed '
+                          f'all {self.current_lvl} levels. Exiting')
         # This will get nested, but likely no more than twice (unless the
         # optimizations are very quick). This shouldn't be an issue,
         # and should never get near the recursion limit unless something goes
