@@ -306,13 +306,16 @@ class Calc(object):
         shutil.copy(self.output_scratch_path.joinpath(chk_name), chk_name)
 
     def _check_normal_completion(self, filepath):
+        # TODO write this
         pass
 
     def resub_calc(self):
+        # TODO write this
         pass
 
     def resume_calc(self):
         # TODO rwf/chk needs to be copied over
+        # TODO write this
         pass
 
     class TimesUp(Exception):
