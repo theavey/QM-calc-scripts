@@ -310,8 +310,28 @@ class Calc(object):
         pass
 
     def resub_calc(self):
-        # TODO write this
-        pass
+        cl = ['qsub', '-notify',
+              '-pe', self.n_slots,
+              '-M', 'theavey@bu.edu',
+              '-m', 'eas',
+              '-l', f'h_rt={self._get_h_rt()}',
+              '-N', self._base_name,
+              '-j', 'y',
+              '-o', os.environ['SGE_STDOUT_PATH'],
+              'aml', '--restart', str(pathlib.Path(self._json_name).resolve())]
+        self.log.info(f'resubmitting job with the following commandline:\n{cl}')
+        output = subprocess.check_output(cl, stderr=subprocess.STDOUT)
+        self.log.info(f'The following was returned from qsub:\n{output}')
+
+    def _get_h_rt(self):
+        job_id = os.environ['JOB_ID']
+        cl = ['qstat', '-j', job_id]
+        output : str = subprocess.check_output(cl, universal_newlines=True)
+        for line in output.splitlines():
+            m = re.search(r'h_rt=(\d+)', line)
+            if m:
+                return m.group(1)
+        raise ValueError('could not find requested runtime for this job')
 
     def resume_calc(self):
         # TODO rwf/chk needs to be copied over
