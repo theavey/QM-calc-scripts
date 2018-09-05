@@ -100,6 +100,7 @@ class Calc(object):
             react_dist = a['react_dist']
             ugt_dicts = a['ugt_dicts']
             self._base_name = self.status['base_name']
+            self.current_lvl = self.status['current_lvl']
         else:
             self.args = {
                 'base_name': base_name,
@@ -110,6 +111,7 @@ class Calc(object):
             self.check_args()
             self._base_name = '{}-ind{}'.format(base_name, ind)
             self._json_name = '{}.json'.format(self._base_name)
+            self.current_lvl = None
             self._status = StatusDict(self._json_name)
         self.top = top
         self.traj = traj
@@ -215,7 +217,9 @@ class Calc(object):
 
     def new_calc(self):
         xyz_path = self._make_rand_xyz()
-        com_name = self._make_g_in(xyz_path, 0)
+        self.current_lvl = 0
+        self.status['current_lvl'] = 0
+        com_name = self._make_g_in(xyz_path)
         self._setup_and_run(com_name)
 
     def _setup_and_run(self, com_name):
@@ -233,10 +237,17 @@ class Calc(object):
         else:
             self.status['calc_cutoff'] = False
             self._check_normal_completion(self.output_scratch_path)
+            self.log.info(f'Seemed to correctly finish level '
+                          f'{self.current_lvl} calculation. Moving on')
+            self.current_lvl += 1
+            self.status['current_lvl'] = self.current_lvl
         self._copy_back_files(com_name, killed)
+        if not killed:
+            self._next_calc()
 
-    def _make_g_in(self, xyz_path, lvl):
+    def _make_g_in(self, xyz_path):
         bn = self._base_name
+        lvl = self.current_lvl
         com_name = f'{bn}-lvl{lvl}.com'
         try:
             ugt_dict = self.ugt_dicts[lvl]
@@ -314,6 +325,13 @@ class Calc(object):
                              outs[-1])
             out_path = pathlib.Path(new_out)
         paratemp.copy_no_overwrite(self.output_scratch_path, out_path)
+        if not killed:
+            xyz_path = str(out_path.with_suffix('xyz'))
+            cl = ['obabel', str(out_path), '-O',
+                  xyz_path]
+            proc = subprocess.run(cl)
+            self.log.info(f'Converted optimized structure to xyz file: '
+                          f'{xyz_path}')
         chk_name = f'{self._base_name}.chk'
         shutil.copy(self.output_scratch_path.joinpath(chk_name), chk_name)
 
@@ -346,9 +364,28 @@ class Calc(object):
         raise ValueError('could not find requested runtime for this job')
 
     def resume_calc(self):
+        # TODO write this
+        self._update_g_in_for_restart()
         # TODO rwf/chk needs to be copied over
+        self._copy_in_restart()
+        pass
+
+    def _copy_in_restart(self):
         # TODO write this
         pass
+
+    def _update_g_in_for_restart(self):
+        # TODO write this
+        pass
+
+    def _next_calc(self):
+        xyz_path = pathlib.Path(self.status['g_in_curr']).with_suffix('xyz')
+        com_name = self._make_g_in(xyz_path)
+        self._setup_and_run(com_name)
+        # This will get nested, but likely no more than twice (unless the
+        # optimizations are very quick). This shouldn't be an issue,
+        # and should never get near the recursion limit unless something goes
+        # very wrong.
 
     class TimesUp(Exception):
         pass
@@ -411,6 +448,9 @@ class StatusDict(dict):
     * g_in_0: str of the name of the file with the initial input to Gaussian.
     * g_in_curr: str of the name of the currently running or most recent
         Gaussian input
+
+    * current_lvl: int of current level of calculation running (max is len(
+        ugt_dicts))
 
     * calc_cutoff: bool of whether the job finished or if it was cutoff
     because of running out of time.
