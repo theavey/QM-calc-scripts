@@ -215,8 +215,33 @@ class Calc(object):
 
     def new_calc(self):
         xyz_path = self._make_rand_xyz()
+        com_name = self._make_g_in(xyz_path, 0)
+        self._setup_and_run(com_name)
+
+    def _setup_and_run(self, com_name):
         bn = self._base_name
-        com_name = f'{bn}-lvl0.com'
+        chk_ln_path = pathlib.Path(f'{bn}-running.chk')
+        chk_ln_path.symlink_to(self.scratch_path.joinpath(f'{bn}.chk'))
+        self.log.info(f'Linked checkpoint file as {chk_ln_path.resolve()}')
+        self.status['g_in_curr'] = com_name
+        killed = self._run_gaussian(com_name)
+        if killed:
+            self.status['calc_cutoff'] = True
+            self.resub_calc()
+            self.log.info('Resubmitted. Cleaning up this job')
+            chk_ln_path.unlink()
+        else:
+            self.status['calc_cutoff'] = False
+            self._check_normal_completion(self.output_scratch_path)
+        self._copy_back_files(com_name, killed)
+
+    def _make_g_in(self, xyz_path, lvl):
+        bn = self._base_name
+        com_name = f'{bn}-lvl{lvl}.com'
+        try:
+            ugt_dict = self.ugt_dicts[lvl]
+        except IndexError:
+            raise self.NoMoreLevels
         tools.use_gen_template(
             out_file=com_name,
             xyz=str(xyz_path),
@@ -224,25 +249,12 @@ class Calc(object):
             checkpoint=f'{bn}.chk',
             rwf=f'{bn}.rwf',
             nproc=self.n_slots, mem=self.mem,
-            **self.ugt_dicts[0]
+            **ugt_dict
         )
         self.log.info('Wrote Gaussian input for '
-                      f'first job to {com_name}')
-        self.status['g_in_0'] = com_name
-        chk_ln_path = pathlib.Path(f'{bn}-running.chk')
-        chk_ln_path.symlink_to(self.scratch_path.joinpath(f'{bn}.chk'))
-        self.log.info(f'Linked checkpoint file as {chk_ln_path.resolve()}')
-        killed = self._run_gaussian(com_name)
-        if killed:
-            self.status['calc_cutoff'] = True
-            self.resub_calc()
-            self.log.info('Resubmitted. Exiting this job')
-            chk_ln_path.unlink()
-            sys.exit('Exiting because job timeout')  # probably don't do this
-        else:
-            self.status['calc_cutoff'] = False
-            self._check_normal_completion(self.output_scratch_path)
-        self._copy_back_files(com_name, killed)
+                      f'level {lvl} job to {com_name}')
+        self.status[f'g_in_{lvl}'] = com_name
+        return com_name
 
     def _run_gaussian(self, com_name):
         out_name = com_name.replace('com', 'out')
@@ -344,6 +356,9 @@ class Calc(object):
     class GaussianDone(Exception):
         pass
 
+    class NoMoreLevels(Exception):
+        pass
+
 
 class StatusDict(dict):
     """
@@ -394,6 +409,9 @@ class StatusDict(dict):
     starting the calculation, before any optimization.
 
     * g_in_0: str of the name of the file with the initial input to Gaussian.
+    * g_in_curr: str of the name of the currently running or most recent
+        Gaussian input
+
     * calc_cutoff: bool of whether the job finished or if it was cutoff
     because of running out of time.
 
