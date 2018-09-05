@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+#! /usr3/graduate/theavey/anaconda_envs/py3.6/bin/python
 """
 Run QM calculations at multiple levels consecutively, using queuing system
 
