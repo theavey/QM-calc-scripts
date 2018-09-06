@@ -119,9 +119,12 @@ class Calc(object):
         self.react_dist = react_dist
         self.ugt_dicts = ugt_dicts
         self.log = logging.getLogger(__name__)
-        self.log.setLevel(0)
+        self.log.setLevel(logging.DEBUG)
         handler = logging.FileHandler('{}.log'.format(self._base_name))
-        handler.setLevel(0)
+        handler.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - '
+                                      '%(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
         self.log.addHandler(handler)
         self.mem, self.node = None, None
         self.scratch_path: pathlib.Path = None
