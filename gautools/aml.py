@@ -499,7 +499,7 @@ class StatusDict(dict):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('-n', '--base_name', type=str, required=True,
+    parser.add_argument('-n', '--base_name', type=str,
                         help='base name for this calculation, likely not '
                              'including any index')
     parser.add_argument('-i', '--index', type=int,
@@ -523,7 +523,7 @@ if __name__ == '__main__':
                         help='Distance to set between atoms 20 and 39, '
                              'in angstroms. If this evaluates to False, '
                              'no changes to the geometry will be made')
-    parser.add_argument('-g', '--ugt_dicts', type=str, required=True,
+    parser.add_argument('-g', '--ugt_dicts', type=str,
                         help='path to json file that parses to a list of '
                              'dicts of arguments for use_gen_template in '
                              'order to create inputs to Gaussian')
