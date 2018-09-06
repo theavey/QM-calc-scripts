@@ -118,7 +118,10 @@ class Calc(object):
         self.criteria = criteria
         self.react_dist = react_dist
         self.ugt_dicts = ugt_dicts
-        self.log = logging.getLogger('{}.log'.format(self._base_name))
+        self.log = logging.getLogger(__name__)
+        self.log.setLevel(0)
+        self.log.addHandler(logging.FileHandler(
+            '{}.log'.format(self._base_name)))
         self.mem, self.node = None, None
         self.scratch_path: pathlib.Path = None
         self.last_scratch_path: pathlib.Path = None
@@ -192,7 +195,7 @@ class Calc(object):
         xyz_name = self._base_name + '.xyz'
         with mda.Writer(xyz_name, system.n_atoms) as w:
             u.trajectory[select]
-            for frag in u.fragments:
+            for frag in u.atoms.fragments:
                 mda.lib.mdamath.make_whole(frag)
                 # This should at least make the molecules whole if not
                 # necessarily in the correct unit cell together.
