@@ -187,8 +187,8 @@ class Calc(object):
         u.read_data()
         frames = u.select_frames(self.criteria, 'QM_frames')
         select = np.random.choice(frames)
-        self.status['source_frame_num'] = select
-        system : mda.AtomGroup = u.select_atoms('all')
+        self.status['source_frame_num'] = int(select)
+        system: mda.AtomGroup = u.select_atoms('all')
         xyz_name = self._base_name + '.xyz'
         with mda.Writer(xyz_name, system.n_atoms) as w:
             u.trajectory[select]
@@ -356,7 +356,7 @@ class Calc(object):
     def _get_h_rt(self):
         job_id = os.environ['JOB_ID']
         cl = ['qstat', '-j', job_id]
-        output : str = subprocess.check_output(cl, universal_newlines=True)
+        output: str = subprocess.check_output(cl, universal_newlines=True)
         for line in output.splitlines():
             m = re.search(r'h_rt=(\d+)', line)
             if m:
