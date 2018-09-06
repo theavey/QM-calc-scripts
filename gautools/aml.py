@@ -534,12 +534,13 @@ if __name__ == '__main__':
     if args.restart is not None:
         calc = Calc(status=args.restart)
     else:
+        ugt_dicts = json.load(open(args.ugt_dicts, 'r'))
         calc = Calc(base_name=args.base_name,
                     ind=args.index,
                     top=args.top,
                     traj=args.trajectory,
                     criteria=dict(args.criteria),
                     react_dist=args.react_dist,
-                    ugt_dicts=json.load(open(args.ugt_dicts, 'r'))
+                    ugt_dicts=ugt_dicts
                     )
     calc.run_calc()
