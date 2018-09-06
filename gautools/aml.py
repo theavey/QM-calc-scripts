@@ -511,7 +511,7 @@ if __name__ == '__main__':
 
     def parse_crit(kvv):
         k, vv = kvv.split('=')
-        vs = (int(v) for v in vv.split(','))
+        vs = tuple((float(v) for v in vv.split(',')))
         return k, vs
 
     parser.add_argument('-s', '--criteria', action='append',
