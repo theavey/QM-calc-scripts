@@ -321,7 +321,7 @@ class Calc(object):
             outs.sort()
             outs.sort(key=len)
             new_out = re.sub(r'(\d+)\.out',
-                             lambda m: f'{int(m.group(1))+1)}.out',
+                             lambda m: '{}.out'.format(int(m.group(1))+1),
                              outs[-1])
             out_path = pathlib.Path(new_out)
         paratemp.copy_no_overwrite(self.output_scratch_path, out_path)
