@@ -50,7 +50,7 @@ import sys
 import threading
 import thtools
 import time
-from . import tools
+from gautools import tools
 
 if not sys.version_info >= (3, 6):
     raise ValueError('Python >= 3.6 is required')
