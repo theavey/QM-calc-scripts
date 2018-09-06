@@ -120,8 +120,9 @@ class Calc(object):
         self.ugt_dicts = ugt_dicts
         self.log = logging.getLogger(__name__)
         self.log.setLevel(0)
-        self.log.addHandler(logging.FileHandler(
-            '{}.log'.format(self._base_name)))
+        handler = logging.FileHandler('{}.log'.format(self._base_name))
+        handler.setLevel(0)
+        self.log.addHandler(handler)
         self.mem, self.node = None, None
         self.scratch_path: pathlib.Path = None
         self.last_scratch_path: pathlib.Path = None
