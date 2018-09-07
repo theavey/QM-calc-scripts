@@ -343,8 +343,15 @@ class Calc(object):
         shutil.copy(self.output_scratch_path.joinpath(chk_name), chk_name)
 
     def _check_normal_completion(self, filepath):
-        # TODO write this
-        pass
+        output = subprocess.check_output(['tail', '-n', '1', str(filepath)],
+                                         universal_newlines=True)
+        if 'normal termination' not in output.lower():
+            self.log.error(f'Abnormal termination of Gaussian job in output: '
+                           f'{filepath}')
+            raise ValueError('Gaussian did not finish normally. See output: '
+                             f'{filepath}')
+        self.log.info(f'Normal termination of Gaussian job! Output at '
+                      f'{filepath}')
 
     def resub_calc(self):
         cl = ['qsub', '-notify',
