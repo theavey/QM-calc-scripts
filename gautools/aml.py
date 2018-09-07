@@ -191,12 +191,16 @@ class Calc(object):
 
     def _make_rand_xyz(self):
         import tables
-        u = paratemp.Universe(self.top, self.traj)
+        u = paratemp.Universe(self.top, self.traj, verbosity=0)
         while True:
             try:
                 u.read_data()
                 break
             except tables.HDF5ExtError:
+                self.log.warning(
+                    'HDF5ExtError raised. Likely because trying to read the '
+                    'store at the same time as another process. Waiting 5 '
+                    'seconds and trying again.')
                 time.sleep(5)
                 continue
         frames = u.select_frames(self.criteria, 'QM_frames')
@@ -240,7 +244,7 @@ class Calc(object):
         bn = self._base_name
         chk_ln_path = pathlib.Path(f'{bn}-running.chk')
         chk_ln_path.symlink_to(self.scratch_path.joinpath(f'{bn}.chk'))
-        self.log.info(f'Linked checkpoint file as {chk_ln_path.resolve()}')
+        self.log.info(f'Linked checkpoint file as {chk_ln_path}')
         self.status['g_in_curr'] = com_name
         killed = self._run_gaussian(com_name)
         if killed:
