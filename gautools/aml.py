@@ -211,7 +211,7 @@ class Calc(object):
             self.log.info('Copied original geometry to {}'.format(
                 xyz_name+'.bak'))
             xyz = XYZ(xyz_name)
-            diff = xyz.coords[20] - xyz.coords[39]
+            diff = xyz.coords[19] - xyz.coords[38]
             direction = diff / np.linalg.norm(diff)
             xyz.coords[20] = xyz.coords[39] + self.react_dist * direction
             xyz.write(xyz_name)
