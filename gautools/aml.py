@@ -190,8 +190,15 @@ class Calc(object):
             self.new_calc()
 
     def _make_rand_xyz(self):
+        import tables
         u = paratemp.Universe(self.top, self.traj)
-        u.read_data()
+        while True:
+            try:
+                u.read_data()
+                break
+            except tables.HDF5ExtError:
+                time.sleep(5)
+                continue
         frames = u.select_frames(self.criteria, 'QM_frames')
         select = np.random.choice(frames)
         self.status['source_frame_num'] = int(select)
