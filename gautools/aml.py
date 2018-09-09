@@ -349,7 +349,7 @@ class Calc(object):
             out_path = pathlib.Path(new_out)
         paratemp.copy_no_overwrite(self.output_scratch_path, out_path)
         if not killed:
-            xyz_path = str(out_path.with_suffix('xyz'))
+            xyz_path = str(out_path.with_suffix('.xyz'))
             cl = ['obabel', str(out_path), '-O',
                   xyz_path]
             proc = subprocess.run(cl)
@@ -432,7 +432,7 @@ class Calc(object):
         return com_name
 
     def _next_calc(self):
-        xyz_path = pathlib.Path(self.status['g_in_curr']).with_suffix('xyz')
+        xyz_path = pathlib.Path(self.status['g_in_curr']).with_suffix('.xyz')
         try:
             com_name = self._make_g_in(xyz_path)
             self._setup_and_run(com_name)
