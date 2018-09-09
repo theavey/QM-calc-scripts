@@ -293,8 +293,8 @@ class Calc(object):
                                     '{}'.format(com_name, self.cwd_path))
         out_path: pathlib.Path = self.scratch_path.joinpath(out_name)
         self.output_scratch_path = out_path
-        signal.signal(signal.SIGUSR2, self._signal_catch_time)
-        signal.signal(signal.SIGUSR1, self._signal_catch_done)
+        old_sigusr1 = signal.signal(signal.SIGUSR1, self._signal_catch_done)
+        old_sigusr2 = signal.signal(signal.SIGUSR2, self._signal_catch_time)
         cl = ['g16', ]
         killed = False
         with com_path.open('r') as f_in, out_path.open('w') as f_out:
@@ -309,9 +309,13 @@ class Calc(object):
                 signal.pause()
             except self.TimesUp:
                 killed = True
+                signal.signal(signal.SIGUSR1, old_sigusr1)
+                signal.signal(signal.SIGUSR2, old_sigusr2)
                 proc.terminate()  # Should be within `with` clause?
                 self.log.info('Gaussian process terminated because of SIGUSR2')
             except self.GaussianDone:
+                signal.signal(signal.SIGUSR1, old_sigusr1)
+                signal.signal(signal.SIGUSR2, old_sigusr2)
                 self.log.info('Gaussian process completed')
         return killed
 
@@ -321,14 +325,14 @@ class Calc(object):
         raise self.TimesUp
 
     def _signal_catch_done(self, signum, frame):
-        self.log.warning('/ Caught SIGUSR1 signal! Likely, this was because '
+        self.log.warning('Caught SIGUSR1 signal! Likely, this was because '
                          'Gaussian process exited')
         raise self.GaussianDone
 
     def _check_proc(self, proc):
         while proc.poll() is None:
             time.sleep(15)
-        self.log.warning('Gaussian process completed. Sending SIGUSR1')
+        self.log.warning('Gaussian process no longer running. Sending SIGUSR1')
         os.kill(os.getpid(), signal.SIGUSR1)
 
     def _copy_back_files(self, com_name: str, killed: bool):
