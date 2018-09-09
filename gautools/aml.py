@@ -320,13 +320,14 @@ class Calc(object):
         return killed
 
     def _signal_catch_time(self, signum, frame):
-        self.log.warning('Caught SIGUSR2 signal! Trying to quit Gaussian '
-                         'and resubmit continuation calculation')
+        self.log.warning(f'Caught {signal.Signals(signum).name} signal! '
+                         'Trying to quit Gaussian and resubmit continuation '
+                         'calculation')
         raise self.TimesUp
 
     def _signal_catch_done(self, signum, frame):
-        self.log.warning('Caught SIGUSR1 signal! Likely, this was because '
-                         'Gaussian process exited')
+        self.log.warning(f'Caught {signal.Signals(signum).name} signal! '
+                         f'Likely, this was because Gaussian process exited')
         raise self.GaussianDone
 
     def _check_proc(self, proc):
