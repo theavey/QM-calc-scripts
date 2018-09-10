@@ -145,6 +145,12 @@ class Calc(object):
                 raise ValueError(f'Argument "{key}" cannot be None')
 
     def _startup_tasks(self):
+        """
+        Some startup tasks to set variables for later use
+
+        This requires the environment variables HOSTNAME and NSLOTS be set.
+        :return: None
+        """
         self.log.debug('Running some introductory tasks and setting variables')
         node = os.environ['HOSTNAME'].split('.')[0]
         self.node = node
@@ -177,9 +183,9 @@ class Calc(object):
 
     def run_calc(self):
         """
+        The primary function to start (or restart) running a calculation
 
-
-        :return:
+        :return: None
         """
         self.log.debug('Welcome. Just starting to run this calculation')
         rerun = True if self.status else False
@@ -394,6 +400,12 @@ class Calc(object):
                       f'{filepath}')
 
     def resub_calc(self):
+        """
+        Resubmit a calculation for resuming in another job
+
+        Requires SGE_STDOUT_PATH and JOB_ID for running `qstat`
+        :return: None
+        """
         self.log.debug('Setting up for calculation resubmission')
         cl = ['qsub', '-notify',
               '-pe', f'omp {self.n_slots}',
@@ -409,6 +421,12 @@ class Calc(object):
         self.log.info(f'The following was returned from qsub:\n{output}')
 
     def _get_h_rt(self):
+        """
+        Find the amount of time requested for the currently running job
+
+        Requires JOB_ID and uses `qstat`.
+        :return:
+        """
         self.log.debug('Attempting to find requested job run time')
         job_id = os.environ['JOB_ID']
         cl = ['qstat', '-j', job_id]
