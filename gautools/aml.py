@@ -254,20 +254,18 @@ class Calc(object):
         self.log.info(f'Linked checkpoint file as {chk_ln_path}')
         self.status['g_in_curr'] = com_name
         killed = self._run_gaussian(com_name)
+        self.status['calc_cutoff'] = killed
         chk_ln_path.unlink()
+        self._copy_back_files(com_name, killed)
         if killed:
-            self.status['calc_cutoff'] = True
             self.resub_calc()
             self.log.info('Resubmitted. Cleaning up this job')
         else:
-            self.status['calc_cutoff'] = False
             self._check_normal_completion(self.output_scratch_path)
             self.log.info(f'Seemed to correctly finish level {self.current_lvl}'
                           f' calculation. Moving on to next level')
             self.current_lvl += 1
             self.status['current_lvl'] = self.current_lvl
-        self._copy_back_files(com_name, killed)
-        if not killed:
             self._next_calc()
 
     def _make_g_in(self, xyz_path):
@@ -368,7 +366,8 @@ class Calc(object):
             xyz_path = str(out_path.with_suffix('.xyz'))
             cl = ['obabel', str(out_path), '-O',
                   xyz_path]
-            proc = subprocess.run(cl, stdout=subprocess.PIPE)
+            proc = subprocess.run(cl, stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT)
             if proc.returncode or \
                     '1 molecule converted' not in proc.stdout.lower():
                 mes = (f'obabel failed to convert {out_path} to an xyz file. '
