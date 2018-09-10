@@ -305,7 +305,8 @@ class Calc(object):
             self.log.info('Started Gaussian; waiting for it to finish or '
                           'timeout')
             try:
-                threading.Thread(target=self._check_proc, args=(proc,))
+                thread = threading.Thread(target=self._check_proc, args=(proc,))
+                thread.start()
                 signal.pause()
             except self.TimesUp:
                 killed = True
