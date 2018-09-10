@@ -247,6 +247,7 @@ class Calc(object):
         self.log.info(f'Linked checkpoint file as {chk_ln_path}')
         self.status['g_in_curr'] = com_name
         killed = self._run_gaussian(com_name)
+        chk_ln_path.unlink()
         if killed:
             self.status['calc_cutoff'] = True
             self.resub_calc()
@@ -259,7 +260,6 @@ class Calc(object):
             self.current_lvl += 1
             self.status['current_lvl'] = self.current_lvl
         self._copy_back_files(com_name, killed)
-        chk_ln_path.unlink()
         if not killed:
             self._next_calc()
 
