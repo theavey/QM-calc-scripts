@@ -126,6 +126,7 @@ class Calc(object):
                                       '%(levelname)s - %(message)s')
         handler.setFormatter(formatter)
         self.log.addHandler(handler)
+        self.log.debug('Initializing the log')
         self.mem, self.node = None, None
         self.scratch_path: pathlib.Path = None
         self.last_scratch_path: pathlib.Path = None
@@ -138,11 +139,13 @@ class Calc(object):
         return self._status
 
     def check_args(self):
+        self.log.debug('Checking validity (completeness) of arguments')
         for key in self.args:
             if self.args[key] is None:
                 raise ValueError(f'Argument "{key}" cannot be None')
 
     def _startup_tasks(self):
+        self.log.debug('Running some introductory tasks and setting variables')
         node = os.environ['HOSTNAME'].split('.')[0]
         self.node = node
         scratch_path = pathlib.Path('/net/{}/scratch/theavey'.format(node))
@@ -178,6 +181,7 @@ class Calc(object):
 
         :return:
         """
+        self.log.debug('Welcome. Just starting to run this calculation')
         rerun = True if self.status else False
         self._startup_tasks()
         if rerun:
@@ -190,6 +194,7 @@ class Calc(object):
             self.new_calc()
 
     def _make_rand_xyz(self):
+        self.log.debug('Making XYZ file to start calculation')
         import tables
         u = paratemp.Universe(self.top, self.traj, verbosity=0)
         while True:
@@ -234,6 +239,7 @@ class Calc(object):
         return pathlib.Path(xyz_name).resolve()
 
     def new_calc(self):
+        self.log.debug('Setting up a new calculation')
         xyz_path = self._make_rand_xyz()
         self.current_lvl = 0
         self.status['current_lvl'] = 0
@@ -241,6 +247,7 @@ class Calc(object):
         self._setup_and_run(com_name)
 
     def _setup_and_run(self, com_name):
+        self.log.debug('Starting setup to run Gaussian')
         bn = self._base_name
         chk_ln_path = pathlib.Path(f'{bn}-running.chk')
         chk_ln_path.symlink_to(self.scratch_path.joinpath(f'{bn}.chk'))
@@ -255,8 +262,8 @@ class Calc(object):
         else:
             self.status['calc_cutoff'] = False
             self._check_normal_completion(self.output_scratch_path)
-            self.log.info(f'Seemed to correctly finish level '
-                          f'{self.current_lvl} calculation. Moving on')
+            self.log.info(f'Seemed to correctly finish level {self.current_lvl}'
+                          f' calculation. Moving on to next level')
             self.current_lvl += 1
             self.status['current_lvl'] = self.current_lvl
         self._copy_back_files(com_name, killed)
@@ -264,12 +271,15 @@ class Calc(object):
             self._next_calc()
 
     def _make_g_in(self, xyz_path):
+        self.log.debug(f'Making new Gaussian input from {xyz_path}')
         bn = self._base_name
         lvl = self.current_lvl
         com_name = f'{bn}-lvl{lvl}.com'
         try:
             ugt_dict = self.ugt_dicts[lvl]
         except IndexError:
+            self.log.warning('Seems that there are no more calculation '
+                             'levels to complete')
             raise self.NoMoreLevels
         tools.use_gen_template(
             out_file=com_name,
@@ -286,6 +296,7 @@ class Calc(object):
         return com_name
 
     def _run_gaussian(self, com_name):
+        self.log.debug('Doing final setup to run Gaussian')
         out_name = com_name.replace('com', 'out')
         com_path: pathlib.Path = self.cwd_path.joinpath(com_name)
         if not com_path.exists():
@@ -332,12 +343,14 @@ class Calc(object):
         raise self.GaussianDone
 
     def _check_proc(self, proc):
+        self.log.debug('Started process to check on Gaussian completion')
         while proc.poll() is None:
             time.sleep(15)
         self.log.warning('Gaussian process no longer running. Sending SIGUSR1')
         os.kill(os.getpid(), signal.SIGUSR1)
 
     def _copy_back_files(self, com_name: str, killed: bool):
+        self.log.debug('Attempting to copy back files')
         if not killed:
             out_path = pathlib.Path(com_name.replace('com', 'out'))
         else:
@@ -349,7 +362,9 @@ class Calc(object):
                              outs[-1])
             out_path = pathlib.Path(new_out)
         paratemp.copy_no_overwrite(self.output_scratch_path, out_path)
+        self.log.debug(f'Copied back output file to {out_path}')
         if not killed:
+            self.log.debug('Converting output to xyz file for next level')
             xyz_path = str(out_path.with_suffix('.xyz'))
             cl = ['obabel', str(out_path), '-O',
                   xyz_path]
@@ -365,8 +380,10 @@ class Calc(object):
                           f'{xyz_path}')
         chk_name = f'{self._base_name}.chk'
         shutil.copy(self.scratch_path.joinpath(chk_name), chk_name)
+        self.log.debug(f'Copied back checkpoint file to {chk_name}')
 
     def _check_normal_completion(self, filepath):
+        self.log.debug('Attempting to check for completion status of Gaussian')
         output = subprocess.check_output(['tail', '-n', '1', str(filepath)],
                                          universal_newlines=True)
         if 'normal termination' not in output.lower():
@@ -378,8 +395,9 @@ class Calc(object):
                       f'{filepath}')
 
     def resub_calc(self):
+        self.log.debug('Setting up for calculation resubmission')
         cl = ['qsub', '-notify',
-              '-pe', self.n_slots,
+              '-pe', f'omp {self.n_slots}',
               '-M', 'theavey@bu.edu',
               '-m', 'eas',
               '-l', f'h_rt={self._get_h_rt()}',
@@ -392,31 +410,38 @@ class Calc(object):
         self.log.info(f'The following was returned from qsub:\n{output}')
 
     def _get_h_rt(self):
+        self.log.debug('Attempting to find requested job run time')
         job_id = os.environ['JOB_ID']
         cl = ['qstat', '-j', job_id]
         output: str = subprocess.check_output(cl, universal_newlines=True)
         for line in output.splitlines():
             m = re.search(r'h_rt=(\d+)', line)
             if m:
+                self.log.debug(f'Found required info: {m.group(0)}')
                 return m.group(1)
+        self.log.error('Could not find requested run time!')
         raise ValueError('could not find requested runtime for this job')
 
     def resume_calc(self):
+        self.log.debug('Attempting to resume calculation')
         com_name = self._update_g_in_for_restart()
         self._copy_in_restart()
         self.status['calc_cutoff'] = None
         self._setup_and_run(com_name)
 
     def _copy_in_restart(self):
+        self.log.debug('Copying rwf and chk files to scratch for restart')
         bn = self._base_name
         old_rwf_path = self.last_scratch_path.joinpath(f'{bn}.rwf')
         if not old_rwf_path.exists():
-            raise FileNotFoundError('Could not find old rwf file at '
-                                    f'{old_rwf_path}')
+            mes = f'Could not find old rwf file at {old_rwf_path}'
+            self.log.error(mes)
+            raise FileNotFoundError(mes)
         old_chk_path = self.last_scratch_path.joinpath(f'{bn}.chk')
         if not old_chk_path.exists():
-            raise FileNotFoundError('Could not find old chk file at '
-                                    f'{old_chk_path}')
+            mes = f'Could not find old chk file at {old_chk_path}'
+            self.log.error(mes)
+            raise FileNotFoundError(mes)
         shutil.copy(old_rwf_path, self.scratch_path)
         shutil.copy(old_chk_path, self.scratch_path)
         self.log.info(f'Copied rwf and chk files from last scratch '
@@ -424,6 +449,7 @@ class Calc(object):
                       f'dir: {self.scratch_path}')
 
     def _update_g_in_for_restart(self):
+        self.log.debug('Updating Gaussian input for restart')
         com_name = self.status['g_in_curr']
         lines = open(com_name, 'r').readlines()
         paratemp.copy_no_overwrite(com_name, com_name+'.bak')
@@ -440,6 +466,7 @@ class Calc(object):
         return com_name
 
     def _next_calc(self):
+        self.log.debug('Moving on to next level calculation')
         xyz_path = pathlib.Path(self.status['g_in_curr']).with_suffix('.xyz')
         try:
             com_name = self._make_g_in(xyz_path)
