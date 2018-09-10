@@ -133,6 +133,7 @@ class Calc(object):
         self.n_slots, self.last_node = None, None
         self.cwd_path: pathlib.Path = None
         self.output_scratch_path: pathlib.Path = None
+        self.chk_ln_path: pathlib.Path = None
 
     @property
     def status(self):
@@ -176,6 +177,9 @@ class Calc(object):
             self.last_scratch_path = pathlib.Path(self.status[
                                                       'current_scratch_dir'])
             self.status['last_scratch_dir'] = str(self.last_scratch_path)
+            self.chk_ln_path = pathlib.Path(self.status['chk_ln_path'])
+            self.output_scratch_path = pathlib.Path(
+                self.status['output_scratch_path'])
         else:
             self.status['args'] = self.args
             self.status['base_name'] = self._base_name
@@ -262,18 +266,20 @@ class Calc(object):
     def _setup_and_run(self, com_name):
         self.log.debug('Starting setup to run Gaussian')
         bn = self._base_name
-        chk_ln_path = pathlib.Path(f'{bn}-running.chk')
+        chk_ln_path = pathlib.Path(f'{bn}-running.chk').resolve()
+        self.chk_ln_path = chk_ln_path
+        self.status['chk_ln_path'] = str(chk_ln_path)
         chk_ln_path.symlink_to(self.scratch_path.joinpath(f'{bn}.chk'))
         self.log.info(f'Linked checkpoint file as {chk_ln_path}')
         self.status['g_in_curr'] = com_name
+        self.status['cleaned_up'] = False
         killed = self._run_gaussian(com_name)
         self.status['calc_cutoff'] = killed
-        chk_ln_path.unlink()
-        self._copy_back_files(com_name, killed)
         if killed:
             self.resub_calc()
             self.log.info('Resubmitted. Cleaning up this job')
         else:
+            self._copy_and_cleanup()
             self._check_normal_completion(self.output_scratch_path)
             self.log.info(f'Seemed to correctly finish level {self.current_lvl}'
                           f' calculation. Moving on to next level')
@@ -315,6 +321,7 @@ class Calc(object):
                                     '{}'.format(com_name, self.cwd_path))
         out_path: pathlib.Path = self.scratch_path.joinpath(out_name)
         self.output_scratch_path = out_path
+        self.status['output_scratch_path'] = str(out_path)
         old_sigusr1 = signal.signal(signal.SIGUSR1, self._signal_catch_done)
         old_sigusr2 = signal.signal(signal.SIGUSR2, self._signal_catch_time)
         cl = ['g16', ]
@@ -323,7 +330,7 @@ class Calc(object):
             self.log.info('Starting Gaussian with input {} and writing '
                           'output to {}'.format(com_path, out_path))
             proc = subprocess.Popen(cl, stdin=f_in, stdout=f_out,
-                                    cwd=self.scratch_path)
+                                    cwd=str(self.scratch_path))
             self.log.info('Started Gaussian; waiting for it to finish or '
                           'timeout')
             try:
@@ -360,8 +367,14 @@ class Calc(object):
         self.log.warning('Gaussian process no longer running. Sending SIGUSR1')
         os.kill(os.getpid(), signal.SIGUSR1)
 
-    def _copy_back_files(self, com_name: str, killed: bool):
-        self.log.debug('Attempting to copy back files')
+    def _copy_and_cleanup(self):
+        self.log.debug('Attempting to copy back files and unlink chk file')
+        com_name: str = self.status['g_in_curr']
+        killed: bool = self.status['calc_cutoff']
+        if killed:
+            scratch_path = pathlib.Path(self.status['last_scratch_dir'])
+        else:
+            scratch_path = self.scratch_path
         if not killed:
             out_path = pathlib.Path(com_name.replace('com', 'out'))
         else:
@@ -378,25 +391,13 @@ class Calc(object):
         paratemp.copy_no_overwrite(str(self.output_scratch_path),
                                    str(out_path))
         self.log.debug(f'Copied back output file to {out_path}')
-        if not killed:
-            self.log.debug('Converting output to xyz file for next level')
-            xyz_path = str(out_path.with_suffix('.xyz'))
-            cl = ['obabel', str(out_path), '-O',
-                  xyz_path]
-            proc = subprocess.run(cl, stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT)
-            if proc.returncode or \
-                    '1 molecule converted' not in proc.stdout.lower():
-                mes = (f'obabel failed to convert {out_path} to an xyz file. '
-                       f'It said: {proc.stdout}')
-                self.log.error(mes)
-                raise subprocess.CalledProcessError(proc.returncode, cmd=cl,
-                                                    output=mes)
-            self.log.info(f'Converted optimized structure to xyz file: '
-                          f'{xyz_path}')
+        if self.chk_ln_path.exists():
+            self.chk_ln_path.unlink()
+            self.log.debug(f'Unlinked checkpoint run file: {self.chk_ln_path}')
         chk_name = f'{self._base_name}.chk'
-        shutil.copy(str(self.scratch_path.joinpath(chk_name)), chk_name)
+        shutil.copy(str(scratch_path.joinpath(chk_name)), chk_name)
         self.log.debug(f'Copied back checkpoint file to {chk_name}')
+        self.status['cleaned_up'] = True
 
     def _check_normal_completion(self, filepath):
         self.log.debug('Attempting to check for completion status of Gaussian')
@@ -462,6 +463,8 @@ class Calc(object):
 
     def resume_calc(self):
         self.log.debug('Attempting to resume calculation')
+        if not self.status['cleaned_up']:
+            self._copy_and_cleanup()
         com_name = self._update_g_in_for_restart()
         self._copy_in_restart()
         self.status['calc_cutoff'] = None
@@ -480,8 +483,8 @@ class Calc(object):
             mes = f'Could not find old chk file at {old_chk_path}'
             self.log.error(mes)
             raise FileNotFoundError(mes)
-        shutil.copy(old_rwf_path, self.scratch_path)
-        shutil.copy(old_chk_path, self.scratch_path)
+        shutil.copy(str(old_rwf_path), str(self.scratch_path))
+        shutil.copy(str(old_chk_path), str(self.scratch_path))
         self.log.info(f'Copied rwf and chk files from last scratch '
                       f'directory: {self.last_scratch_path}\nto node scratch '
                       f'dir: {self.scratch_path}')
@@ -505,9 +508,10 @@ class Calc(object):
 
     def _next_calc(self):
         self.log.debug('Moving on to next level calculation')
-        xyz_path = pathlib.Path(self.status['g_in_curr']).with_suffix('.xyz')
+        out_path = pathlib.Path(self.status['g_in_curr']).with_suffix('.out')
+        xyz_path_str = self._create_opt_xyz(out_path)
         try:
-            com_name = self._make_g_in(xyz_path)
+            com_name = self._make_g_in(xyz_path_str)
             self._setup_and_run(com_name)
         except self.NoMoreLevels:
             self.log.info('No more calculation levels to complete! Completed '
@@ -516,6 +520,24 @@ class Calc(object):
         # optimizations are very quick). This shouldn't be an issue,
         # and should never get near the recursion limit unless something goes
         # very wrong.
+
+    def _create_opt_xyz(self, out_path: pathlib.Path):
+        self.log.debug('Converting output to xyz file for next level')
+        xyz_path_str = str(out_path.with_suffix('.xyz'))
+        cl = ['obabel', str(out_path), '-O',
+              xyz_path_str]
+        proc = subprocess.run(cl, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT)
+        if proc.returncode or \
+                '1 molecule converted' not in proc.stdout.lower():
+            mes = (f'obabel failed to convert {out_path} to an xyz file. '
+                   f'It said: {proc.stdout}')
+            self.log.error(mes)
+            raise subprocess.CalledProcessError(proc.returncode, cmd=cl,
+                                                output=mes)
+        self.log.info(f'Converted optimized structure to xyz file: '
+                      f'{xyz_path_str}')
+        return xyz_path_str
 
     class TimesUp(Exception):
         pass
@@ -583,7 +605,16 @@ class StatusDict(dict):
         ugt_dicts))
 
     * calc_cutoff: bool of whether the job finished or if it was cutoff
-    because of running out of time.
+        because of running out of time.
+
+    * cleaned_up: bool of whether linked files and old outputs have been
+        cleaned up and copied back to the starting directory
+
+    * chk_ln_path: str of path to where checkpoint file is linked in
+        submission directory
+
+    * output_scratch_path: str of path to where output is in the scratch
+        directory
 
     """
     def __init__(self, path):
