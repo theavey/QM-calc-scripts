@@ -438,7 +438,7 @@ class Calc(object):
             """
         self.log.debug('Setting up for calculation resubmission')
         self.resub_cl = ['qsub', '-notify',
-                         '-pe', f'omp {self.n_slots}',
+                         '-pe', 'omp', f'{self.n_slots}',
                          '-M', 'theavey@bu.edu',
                          '-m', 'eas',
                          '-l', f'h_rt={self.h_rt}',
