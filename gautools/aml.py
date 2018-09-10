@@ -374,8 +374,9 @@ class Calc(object):
                 new_out = re.sub(r'(\d+)\.out',
                                  lambda m: '{}.out'.format(int(m.group(1))+1),
                                  str(outs[-1]))
-            out_path = pathlib.Path(new_out)
-        paratemp.copy_no_overwrite(self.output_scratch_path, out_path)
+            out_path = pathlib.Path(new_out).resolve()
+        paratemp.copy_no_overwrite(str(self.output_scratch_path),
+                                   str(out_path))
         self.log.debug(f'Copied back output file to {out_path}')
         if not killed:
             self.log.debug('Converting output to xyz file for next level')
