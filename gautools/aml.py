@@ -152,13 +152,21 @@ class Calc(object):
         :return: None
         """
         self.log.debug('Running some introductory tasks and setting variables')
-        node = os.environ['HOSTNAME'].split('.')[0]
+        try:
+            node = os.environ['HOSTNAME'].split('.')[0]
+        except KeyError:
+            self.log.error('Could not find HOSTNAME!')
+            raise
         self.node = node
         scratch_path = pathlib.Path('/net/{}/scratch/theavey'.format(node))
         scratch_path.mkdir(exist_ok=True)
         self.scratch_path = scratch_path
         self.mem = thtools.job_tools.get_node_mem()
-        n_slots = int(os.environ['NSLOTS'])
+        try:
+            n_slots = int(os.environ['NSLOTS'])
+        except KeyError:
+            self.log.error('Could not find NSLOTS!')
+            raise
         self.n_slots = n_slots
         self.log.info('Running on {} using {} cores and up to {} GB '
                       'mem'.format(node, n_slots, self.mem))
@@ -407,6 +415,12 @@ class Calc(object):
         :return: None
         """
         self.log.debug('Setting up for calculation resubmission')
+        try:
+            stdout_file = os.environ['SGE_STDOUT_PATH']
+            self.log.debug(f'Using stdout path: {stdout_file}')
+        except KeyError:
+            self.log.error('Could not find SGE_STDOUT_PATH!')
+            raise
         cl = ['qsub', '-notify',
               '-pe', f'omp {self.n_slots}',
               '-M', 'theavey@bu.edu',
@@ -414,7 +428,7 @@ class Calc(object):
               '-l', f'h_rt={self._get_h_rt()}',
               '-N', self._base_name,
               '-j', 'y',
-              '-o', os.environ['SGE_STDOUT_PATH'],
+              '-o', stdout_file,
               'aml', '--restart', str(pathlib.Path(self._json_name).resolve())]
         self.log.info(f'resubmitting job with the following commandline:\n{cl}')
         output = subprocess.check_output(cl, stderr=subprocess.STDOUT)
@@ -428,7 +442,11 @@ class Calc(object):
         :return:
         """
         self.log.debug('Attempting to find requested job run time')
-        job_id = os.environ['JOB_ID']
+        try:
+            job_id = os.environ['JOB_ID']
+        except KeyError:
+            self.log.error('Could not find JOB_ID!')
+            raise
         cl = ['qstat', '-j', job_id]
         output: str = subprocess.check_output(cl, universal_newlines=True)
         for line in output.splitlines():
