@@ -370,7 +370,7 @@ class Calc(object):
             outs.sort(key=len)
             new_out = re.sub(r'(\d+)\.out',
                              lambda m: '{}.out'.format(int(m.group(1))+1),
-                             outs[-1])
+                             str(outs[-1]))
             out_path = pathlib.Path(new_out)
         paratemp.copy_no_overwrite(self.output_scratch_path, out_path)
         self.log.debug(f'Copied back output file to {out_path}')
