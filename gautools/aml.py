@@ -136,6 +136,7 @@ class Calc(object):
         self.chk_ln_path: pathlib.Path = None
         self.h_rt: str = None
         self.stdout_file: str = None
+        self.resub_cl: list[str] = None
 
     @property
     def status(self):
@@ -179,6 +180,7 @@ class Calc(object):
         except KeyError:
             self.log.error('Could not find SGE_STDOUT_PATH!')
             raise
+        self._make_resub_cl()
         if self.status:
             self.last_node = self.status['current_node']
             self.status['last_node'] = self.last_node
@@ -421,25 +423,29 @@ class Calc(object):
                       f'{filepath}')
 
     def resub_calc(self):
-        """
-        Resubmit a calculation for resuming in another job
-
-        Requires SGE_STDOUT_PATH and JOB_ID for running `qstat`
-        :return: None
-        """
-        self.log.debug('Setting up for calculation resubmission')
-        cl = ['qsub', '-notify',
-              '-pe', f'omp {self.n_slots}',
-              '-M', 'theavey@bu.edu',
-              '-m', 'eas',
-              '-l', f'h_rt={self.h_rt}',
-              '-N', self._base_name,
-              '-j', 'y',
-              '-o', self.stdout_file,
-              'aml', '--restart', self._json_name]
-        self.log.info(f'resubmitting job with the following commandline:\n{cl}')
-        output = subprocess.check_output(cl, stderr=subprocess.STDOUT)
+        self.log.info(f'resubmitting job with the following commandline:\n'
+                      f'{self.resub_cl}')
+        output = subprocess.check_output(self.resub_cl,
+                                         stderr=subprocess.STDOUT)
         self.log.info(f'The following was returned from qsub:\n{output}')
+
+    def _make_resub_cl(self):
+        """
+            Make command line for a calculation for resuming in another job
+
+            Requires SGE_STDOUT_PATH and JOB_ID for running `qstat`
+            :return: None
+            """
+        self.log.debug('Setting up for calculation resubmission')
+        self.resub_cl = ['qsub', '-notify',
+                         '-pe', f'omp {self.n_slots}',
+                         '-M', 'theavey@bu.edu',
+                         '-m', 'eas',
+                         '-l', f'h_rt={self.h_rt}',
+                         '-N', self._base_name,
+                         '-j', 'y',
+                         '-o', self.stdout_file,
+                         'aml', '--restart', self._json_name]
 
     def _get_h_rt(self):
         """
