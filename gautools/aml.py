@@ -394,7 +394,7 @@ class Calc(object):
             self.log.info(f'Converted optimized structure to xyz file: '
                           f'{xyz_path}')
         chk_name = f'{self._base_name}.chk'
-        shutil.copy(self.scratch_path.joinpath(chk_name), chk_name)
+        shutil.copy(str(self.scratch_path.joinpath(chk_name)), chk_name)
         self.log.debug(f'Copied back checkpoint file to {chk_name}')
 
     def _check_normal_completion(self, filepath):
