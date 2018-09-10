@@ -139,7 +139,6 @@ class Calc(object):
         return self._status
 
     def check_args(self):
-        self.log.debug('Checking validity (completeness) of arguments')
         for key in self.args:
             if self.args[key] is None:
                 raise ValueError(f'Argument "{key}" cannot be None')
