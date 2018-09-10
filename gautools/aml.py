@@ -353,7 +353,14 @@ class Calc(object):
             xyz_path = str(out_path.with_suffix('.xyz'))
             cl = ['obabel', str(out_path), '-O',
                   xyz_path]
-            proc = subprocess.run(cl)
+            proc = subprocess.run(cl, stdout=subprocess.PIPE)
+            if proc.returncode or \
+                    '1 molecule converted' not in proc.stdout.lower():
+                mes = (f'obabel failed to convert {out_path} to an xyz file. '
+                       f'It said: {proc.stdout}')
+                self.log.error(mes)
+                raise subprocess.CalledProcessError(proc.returncode, cmd=cl,
+                                                    output=mes)
             self.log.info(f'Converted optimized structure to xyz file: '
                           f'{xyz_path}')
         chk_name = f'{self._base_name}.chk'
