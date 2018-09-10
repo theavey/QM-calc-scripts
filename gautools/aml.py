@@ -134,6 +134,8 @@ class Calc(object):
         self.cwd_path: pathlib.Path = None
         self.output_scratch_path: pathlib.Path = None
         self.chk_ln_path: pathlib.Path = None
+        self.h_rt: str = None
+        self.stdout_file: str = None
 
     @property
     def status(self):
@@ -168,8 +170,15 @@ class Calc(object):
             self.log.error('Could not find NSLOTS!')
             raise
         self.n_slots = n_slots
-        self.log.info('Running on {} using {} cores and up to {} GB '
-                      'mem'.format(node, n_slots, self.mem))
+        self.h_rt = self._get_h_rt()
+        self.log.info(f'Running on {node} using {n_slots} cores and up to '
+                      f'{self.mem} GB mem for {self.h_rt} seconds')
+        try:
+            self.stdout_file = os.environ['SGE_STDOUT_PATH']
+            self.log.debug(f'Using stdout path: {self.stdout_file}')
+        except KeyError:
+            self.log.error('Could not find SGE_STDOUT_PATH!')
+            raise
         if self.status:
             self.last_node = self.status['current_node']
             self.status['last_node'] = self.last_node
@@ -419,21 +428,15 @@ class Calc(object):
         :return: None
         """
         self.log.debug('Setting up for calculation resubmission')
-        try:
-            stdout_file = os.environ['SGE_STDOUT_PATH']
-            self.log.debug(f'Using stdout path: {stdout_file}')
-        except KeyError:
-            self.log.error('Could not find SGE_STDOUT_PATH!')
-            raise
         cl = ['qsub', '-notify',
               '-pe', f'omp {self.n_slots}',
               '-M', 'theavey@bu.edu',
               '-m', 'eas',
-              '-l', f'h_rt={self._get_h_rt()}',
+              '-l', f'h_rt={self.h_rt}',
               '-N', self._base_name,
               '-j', 'y',
-              '-o', stdout_file,
-              'aml', '--restart', str(pathlib.Path(self._json_name).resolve())]
+              '-o', self.stdout_file,
+              'aml', '--restart', self._json_name]
         self.log.info(f'resubmitting job with the following commandline:\n{cl}')
         output = subprocess.check_output(cl, stderr=subprocess.STDOUT)
         self.log.info(f'The following was returned from qsub:\n{output}')
