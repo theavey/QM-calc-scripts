@@ -366,11 +366,14 @@ class Calc(object):
             out_path = pathlib.Path(com_name.replace('com', 'out'))
         else:
             outs = list(self.cwd_path.glob(com_name[:-4]+'-*.out'))
-            outs.sort()
-            outs.sort(key=len)
-            new_out = re.sub(r'(\d+)\.out',
-                             lambda m: '{}.out'.format(int(m.group(1))+1),
-                             str(outs[-1]))
+            if not outs:
+                new_out = com_name[:-4]+'-1.out'
+            else:
+                outs.sort()
+                outs.sort(key=len)
+                new_out = re.sub(r'(\d+)\.out',
+                                 lambda m: '{}.out'.format(int(m.group(1))+1),
+                                 str(outs[-1]))
             out_path = pathlib.Path(new_out)
         paratemp.copy_no_overwrite(self.output_scratch_path, out_path)
         self.log.debug(f'Copied back output file to {out_path}')
