@@ -51,6 +51,7 @@ import threading
 import thtools
 import time
 from gautools import tools
+import functools
 
 if not sys.version_info >= (3, 6):
     raise ValueError('Python >= 3.6 is required')
@@ -138,6 +139,16 @@ class Calc(object):
         self.stdout_file: str = None
         self.resub_cl: list[str] = None
 
+    def catch_exception(self, f):
+        @functools.wraps(f)
+        def func(*argss, **kwargs):
+            try:
+                return f(*argss, **kwargs)
+            except Exception:
+                self.log.exception(f'An exception was raised in {f.__name__}!')
+                raise
+        return func
+
     @property
     def status(self):
         return self._status
@@ -147,6 +158,7 @@ class Calc(object):
             if self.args[key] is None:
                 raise ValueError(f'Argument "{key}" cannot be None')
 
+    @catch_exception
     def _startup_tasks(self):
         """
         Some startup tasks to set variables for later use
@@ -203,6 +215,7 @@ class Calc(object):
         self.log.info('Submitted from {} and will be running in {}'.format(
             self.cwd_path, self.scratch_path))
 
+    @catch_exception
     def run_calc(self):
         """
         The primary function to start (or restart) running a calculation
@@ -221,6 +234,7 @@ class Calc(object):
                              'Starting new calculation?')
             self.new_calc()
 
+    @catch_exception
     def _make_rand_xyz(self):
         self.log.debug('Making XYZ file to start calculation')
         import tables
@@ -266,6 +280,7 @@ class Calc(object):
         self.status['starting_xyz'] = xyz_name
         return pathlib.Path(xyz_name).resolve()
 
+    @catch_exception
     def new_calc(self):
         self.log.debug('Setting up a new calculation')
         xyz_path = self._make_rand_xyz()
@@ -274,6 +289,7 @@ class Calc(object):
         com_name = self._make_g_in(xyz_path)
         self._setup_and_run(com_name)
 
+    @catch_exception
     def _setup_and_run(self, com_name):
         self.log.debug('Starting setup to run Gaussian')
         bn = self._base_name
@@ -298,6 +314,7 @@ class Calc(object):
             self.status['current_lvl'] = self.current_lvl
             self._next_calc()
 
+    @catch_exception
     def _make_g_in(self, xyz_path):
         self.log.debug(f'Making new Gaussian input from {xyz_path}')
         bn = self._base_name
@@ -323,6 +340,7 @@ class Calc(object):
         self.status[f'g_in_{lvl}'] = com_name
         return com_name
 
+    @catch_exception
     def _run_gaussian(self, com_name):
         self.log.debug('Doing final setup to run Gaussian')
         out_name = com_name.replace('com', 'out')
@@ -360,17 +378,20 @@ class Calc(object):
                 self.log.info('Gaussian process completed')
         return killed
 
+    @catch_exception
     def _signal_catch_time(self, signum, frame):
         self.log.warning(f'Caught {signal.Signals(signum).name} signal! '
                          'Trying to quit Gaussian and resubmit continuation '
                          'calculation')
         raise self.TimesUp
 
+    @catch_exception
     def _signal_catch_done(self, signum, frame):
         self.log.warning(f'Caught {signal.Signals(signum).name} signal! '
                          f'Likely, this was because Gaussian process exited')
         raise self.GaussianDone
 
+    @catch_exception
     def _check_proc(self, proc):
         self.log.debug('Started process to check on Gaussian completion')
         while proc.poll() is None:
@@ -378,6 +399,7 @@ class Calc(object):
         self.log.warning('Gaussian process no longer running. Sending SIGUSR1')
         os.kill(os.getpid(), signal.SIGUSR1)
 
+    @catch_exception
     def _copy_and_cleanup(self):
         self.log.debug('Attempting to copy back files and unlink chk file')
         com_name: str = self.status['g_in_curr']
@@ -410,6 +432,7 @@ class Calc(object):
         self.log.debug(f'Copied back checkpoint file to {chk_name}')
         self.status['cleaned_up'] = True
 
+    @catch_exception
     def _check_normal_completion(self, filepath):
         self.log.debug('Attempting to check for completion status of Gaussian')
         output = subprocess.check_output(['tail', '-n', '1', str(filepath)],
@@ -422,6 +445,7 @@ class Calc(object):
         self.log.info(f'Normal termination of Gaussian job! Output at '
                       f'{filepath}')
 
+    @catch_exception
     def resub_calc(self):
         self.log.info(f'resubmitting job with the following commandline:\n'
                       f'{self.resub_cl}')
@@ -435,6 +459,7 @@ class Calc(object):
                            f'returncode {proc.returncode}')
             proc.check_returncode()
 
+    @catch_exception
     def _make_resub_cl(self):
         """
             Make command line for a calculation for resuming in another job
@@ -456,6 +481,7 @@ class Calc(object):
         self.log.info(f'Wrote resubmission script to {sub_sh_path}')
         self.resub_cl = ['qsub', str(sub_sh_path)]
 
+    @catch_exception
     def _get_h_rt(self):
         """
         Find the amount of time requested for the currently running job
@@ -479,6 +505,7 @@ class Calc(object):
         self.log.error('Could not find requested run time!')
         raise ValueError('could not find requested runtime for this job')
 
+    @catch_exception
     def resume_calc(self):
         self.log.debug('Attempting to resume calculation')
         if not self.status['cleaned_up']:
@@ -488,6 +515,7 @@ class Calc(object):
         self.status['calc_cutoff'] = None
         self._setup_and_run(com_name)
 
+    @catch_exception
     def _copy_in_restart(self):
         self.log.debug('Copying rwf and chk files to scratch for restart')
         bn = self._base_name
@@ -507,6 +535,7 @@ class Calc(object):
                       f'directory: {self.last_scratch_path}\nto node scratch '
                       f'dir: {self.scratch_path}')
 
+    @catch_exception
     def _update_g_in_for_restart(self):
         self.log.debug('Updating Gaussian input for restart')
         com_name = self.status['g_in_curr']
@@ -524,6 +553,7 @@ class Calc(object):
                       f'and to use all the memory on this node')
         return com_name
 
+    @catch_exception
     def _next_calc(self):
         self.log.debug('Moving on to next level calculation')
         out_path = pathlib.Path(self.status['g_in_curr']).with_suffix('.out')
@@ -539,6 +569,7 @@ class Calc(object):
         # and should never get near the recursion limit unless something goes
         # very wrong.
 
+    @catch_exception
     def _create_opt_xyz(self, out_path: pathlib.Path):
         self.log.debug('Converting output to xyz file for next level')
         xyz_path_str = str(out_path.with_suffix('.xyz'))
