@@ -453,6 +453,7 @@ class Calc(object):
             for key in arg_d:
                 sub_sh.write(f'#$ -{key} {arg_d[key]}\n')
             sub_sh.write(f'\n{curr_file} --restart {self._json_name}\n\n')
+        self.log.info(f'Wrote resubmission script to {sub_sh_path}')
         self.resub_cl = ['qsub', str(sub_sh_path)]
 
     def _get_h_rt(self):
