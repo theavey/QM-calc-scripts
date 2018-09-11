@@ -317,9 +317,11 @@ class Calc(object):
         self.status['chk_ln_path'] = str(chk_ln_path)
         chk_ln_path.symlink_to(self.scratch_path.joinpath(f'{bn}.chk'))
         self.log.info(f'Linked checkpoint file as {chk_ln_path}')
-        self.status['g_in_curr'] = com_name
         self.resub_calc()
+        self.status['g_in_curr'] = com_name
         self.status['cleaned_up'] = False
+        self.status['between_levels'] = False
+        self.status['calc_cutoff'] = None
         killed = self._run_gaussian(com_name)
         self.status['calc_cutoff'] = killed
         if killed:
@@ -536,10 +538,32 @@ class Calc(object):
             cleaned = False
         if not cleaned:
             self._copy_and_cleanup()
-        com_name = self._update_g_in_for_restart()
-        self._copy_in_restart()
-        self.status['calc_cutoff'] = None
-        self._setup_and_run(com_name)
+        try:
+            between_levels = self.status['between_levels']
+        except KeyError:
+            self.log.warning('No key in status for determining if between '
+                             'levels currently')
+            between_levels = self._check_between_levels()
+        if between_levels:
+            self._next_calc()
+        else:
+            com_name = self._update_g_in_for_restart()
+            self._copy_in_restart()
+            self._setup_and_run(com_name)
+
+    @log_exception
+    def _check_between_levels(self):
+        # Might need to look for rwf file otherwise should start the
+        # calculation again
+        self.log.debug('Checking to see if calculation left off between '
+                       'calculation levels')
+        lvl = self.current_lvl
+        try:
+            if self.status[f'g_in_{lvl}'] == self.status['g_in_curr']:
+                return False
+        except KeyError:
+            pass
+        return True
 
     @log_exception
     def _copy_in_restart(self):
@@ -585,6 +609,7 @@ class Calc(object):
     @log_exception
     def _next_calc(self):
         self.log.debug('Moving on to next level calculation')
+        self.status['between_levels'] = True
         out_path = pathlib.Path(self.status['g_in_curr']).with_suffix('.out')
         xyz_path_str = self._create_opt_xyz(out_path)
         try:
@@ -707,6 +732,9 @@ class StatusDict(dict):
         directory
 
     * job_id: str of the job number from the sun grid system
+
+    * between_levels: bool of if between levels (not in the middle of a
+        calculation). Useful for figuring out where to restart.
 
     """
     def __init__(self, path):
