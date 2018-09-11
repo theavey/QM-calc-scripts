@@ -389,14 +389,12 @@ class Calc(object):
                 self.log.info('Gaussian process completed')
         return killed
 
-    @catch_exception
     def _signal_catch_time(self, signum, frame):
         self.log.warning(f'Caught {signal.Signals(signum).name} signal! '
                          'Trying to quit Gaussian and resubmit continuation '
                          'calculation')
         raise self.TimesUp
 
-    @catch_exception
     def _signal_catch_done(self, signum, frame):
         self.log.warning(f'Caught {signal.Signals(signum).name} signal! '
                          f'Likely, this was because Gaussian process exited')
