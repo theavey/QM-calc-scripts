@@ -203,7 +203,7 @@ class Calc(object):
         except KeyError:
             self.log.error('Could not find SGE_STDOUT_PATH!')
             raise
-        self._make_resub_cl()
+        self._make_resub_sh_and_cl()
         if self.status:
             self.last_node = self.status['current_node']
             self.status['last_node'] = self.last_node
@@ -469,7 +469,7 @@ class Calc(object):
             proc.check_returncode()
 
     @catch_exception
-    def _make_resub_cl(self):
+    def _make_resub_sh_and_cl(self):
         """
             Make command line for a calculation for resuming in another job
 
@@ -517,7 +517,13 @@ class Calc(object):
     @catch_exception
     def resume_calc(self):
         self.log.debug('Attempting to resume calculation')
-        if not self.status['cleaned_up']:
+        try:
+            cleaned = self.status['cleaned_up']
+        except KeyError:
+            self.log.error('Could not fine "cleaned_up" in status. Assuming '
+                           'dirty')
+            cleaned = False
+        if not cleaned:
             self._copy_and_cleanup()
         com_name = self._update_g_in_for_restart()
         self._copy_in_restart()
