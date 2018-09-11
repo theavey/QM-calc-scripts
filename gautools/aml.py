@@ -347,12 +347,12 @@ class Calc(object):
             self.log.info('Exited from function running Gaussian because '
                           'SIGUSR2')
         else:
-            self._copy_and_cleanup()
             self._check_normal_completion(self.output_scratch_path)
             self.log.info(f'Seemed to correctly finish level {self.current_lvl}'
                           f' calculation. Moving on to next level')
             self.current_lvl += 1
             self.status['current_lvl'] = self.current_lvl
+            self._copy_and_cleanup()
             self._next_calc()
 
     @log_exception
@@ -565,7 +565,7 @@ class Calc(object):
         try:
             cleaned = self.status['cleaned_up']
         except KeyError:
-            self.log.error('Could not fine "cleaned_up" in status. Assuming '
+            self.log.error('Could not find "cleaned_up" in status. Assuming '
                            'dirty')
             cleaned = False
         if not cleaned:
