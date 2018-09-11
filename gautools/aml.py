@@ -66,7 +66,7 @@ handler.setFormatter(formatter)
 log.addHandler(handler)
 
 
-def catch_exception(f):
+def log_exception(f):
     @functools.wraps(f)
     def func(*args, **kwargs):
         try:
@@ -159,6 +159,8 @@ class Calc(object):
         self.h_rt: str = None
         self.stdout_file: str = None
         self.resub_cl: list[str] = None
+        self.job_id: str = None
+        self.next_job_id: str = None
 
     @property
     def status(self):
@@ -169,7 +171,7 @@ class Calc(object):
             if self.args[key] is None:
                 raise ValueError(f'Argument "{key}" cannot be None')
 
-    @catch_exception
+    @log_exception
     def _startup_tasks(self):
         """
         Some startup tasks to set variables for later use
@@ -187,6 +189,11 @@ class Calc(object):
         scratch_path = pathlib.Path('/net/{}/scratch/theavey'.format(node))
         scratch_path.mkdir(exist_ok=True)
         self.scratch_path = scratch_path
+        try:
+            self.job_id = os.environ['JOB_ID']
+        except KeyError:
+            self.log.error('Could not find JOB_ID!')
+            raise
         self.mem = thtools.job_tools.get_node_mem()
         try:
             n_slots = int(os.environ['NSLOTS'])
@@ -221,12 +228,14 @@ class Calc(object):
         self.status['node_list'] = node_list + [node]
         self.status['current_node'] = node
         self.status['current_scratch_dir'] = str(scratch_path)
+        self.status['job_id'] = self.job_id
         self.cwd_path = pathlib.Path('.').resolve()
         self.status['cwd'] = str(self.cwd_path)
         self.log.info('Submitted from {} and will be running in {}'.format(
             self.cwd_path, self.scratch_path))
+        self.resub_calc()
 
-    @catch_exception
+    @log_exception
     def run_calc(self):
         """
         The primary function to start (or restart) running a calculation
@@ -245,7 +254,7 @@ class Calc(object):
                              'Starting new calculation?')
             self.new_calc()
 
-    @catch_exception
+    @log_exception
     def _make_rand_xyz(self):
         self.log.debug('Making XYZ file to start calculation')
         import tables
@@ -291,7 +300,7 @@ class Calc(object):
         self.status['starting_xyz'] = xyz_name
         return pathlib.Path(xyz_name).resolve()
 
-    @catch_exception
+    @log_exception
     def new_calc(self):
         self.log.debug('Setting up a new calculation')
         xyz_path = self._make_rand_xyz()
@@ -300,7 +309,7 @@ class Calc(object):
         com_name = self._make_g_in(xyz_path)
         self._setup_and_run(com_name)
 
-    @catch_exception
+    @log_exception
     def _setup_and_run(self, com_name):
         self.log.debug('Starting setup to run Gaussian')
         bn = self._base_name
@@ -314,8 +323,8 @@ class Calc(object):
         killed = self._run_gaussian(com_name)
         self.status['calc_cutoff'] = killed
         if killed:
-            self.resub_calc()
-            self.log.info('Resubmitted. Cleaning up this job')
+            self.log.info('Exited from function running Gaussian because '
+                          'SIGUSR2')
         else:
             self._copy_and_cleanup()
             self._check_normal_completion(self.output_scratch_path)
@@ -325,7 +334,7 @@ class Calc(object):
             self.status['current_lvl'] = self.current_lvl
             self._next_calc()
 
-    @catch_exception
+    @log_exception
     def _make_g_in(self, xyz_path):
         self.log.debug(f'Making new Gaussian input from {xyz_path}')
         bn = self._base_name
@@ -351,7 +360,7 @@ class Calc(object):
         self.status[f'g_in_{lvl}'] = com_name
         return com_name
 
-    @catch_exception
+    @log_exception
     def _run_gaussian(self, com_name):
         self.log.debug('Doing final setup to run Gaussian')
         out_name = com_name.replace('com', 'out')
@@ -400,7 +409,7 @@ class Calc(object):
                          f'Likely, this was because Gaussian process exited')
         raise self.GaussianDone
 
-    @catch_exception
+    @log_exception
     def _check_proc(self, proc):
         self.log.debug('Started process to check on Gaussian completion')
         while proc.poll() is None:
@@ -408,7 +417,7 @@ class Calc(object):
         self.log.warning('Gaussian process no longer running. Sending SIGUSR1')
         os.kill(os.getpid(), signal.SIGUSR1)
 
-    @catch_exception
+    @log_exception
     def _copy_and_cleanup(self):
         self.log.debug('Attempting to copy back files and unlink chk file')
         com_name: str = self.status['g_in_curr']
@@ -441,7 +450,7 @@ class Calc(object):
         self.log.debug(f'Copied back checkpoint file to {chk_name}')
         self.status['cleaned_up'] = True
 
-    @catch_exception
+    @log_exception
     def _check_normal_completion(self, filepath):
         self.log.debug('Attempting to check for completion status of Gaussian')
         output = subprocess.check_output(['tail', '-n', '1', str(filepath)],
@@ -454,7 +463,7 @@ class Calc(object):
         self.log.info(f'Normal termination of Gaussian job! Output at '
                       f'{filepath}')
 
-    @catch_exception
+    @log_exception
     def resub_calc(self):
         self.log.info(f'resubmitting job with the following commandline:\n'
                       f'{self.resub_cl}')
@@ -467,8 +476,15 @@ class Calc(object):
             self.log.error('Resubmission of calculation failed with '
                            f'returncode {proc.returncode}')
             proc.check_returncode()
+        match = re.search(r'(\d+)\s\("(\w.*)"\)', proc.stdout)
+        if match:
+            self.next_job_id = match.group(1)
+        else:
+            self.log.warning('Could not find submitted job id from qsub '
+                             'command. Will not be able to cancel it if this '
+                             'Calc is completed')
 
-    @catch_exception
+    @log_exception
     def _make_resub_sh_and_cl(self):
         """
             Make command line for a calculation for resuming in another job
@@ -479,7 +495,7 @@ class Calc(object):
         self.log.debug('Setting up for calculation resubmission')
         arg_d = dict(pe=f'omp {self.n_slots}', M='theavey@bu.edu', m='eas',
                      l=f'h_rt={self.h_rt}', N=self._base_name, j='y',
-                     o=self.stdout_file, notify='')
+                     o=self.stdout_file, notify='', hold_jid=self.job_id)
         sub_sh_path = self.scratch_path.joinpath('resub.sh')
         curr_file = pathlib.Path(__file__).resolve()
         with sub_sh_path.open('w') as sub_sh:
@@ -490,7 +506,7 @@ class Calc(object):
         self.log.info(f'Wrote resubmission script to {sub_sh_path}')
         self.resub_cl = ['qsub', str(sub_sh_path)]
 
-    @catch_exception
+    @log_exception
     def _get_h_rt(self):
         """
         Find the amount of time requested for the currently running job
@@ -499,12 +515,7 @@ class Calc(object):
         :return:
         """
         self.log.debug('Attempting to find requested job run time')
-        try:
-            job_id = os.environ['JOB_ID']
-        except KeyError:
-            self.log.error('Could not find JOB_ID!')
-            raise
-        cl = ['qstat', '-j', job_id]
+        cl = ['qstat', '-j', self.job_id]
         output: str = subprocess.check_output(cl, universal_newlines=True)
         for line in output.splitlines():
             m = re.search(r'h_rt=(\d+)', line)
@@ -514,7 +525,7 @@ class Calc(object):
         self.log.error('Could not find requested run time!')
         raise ValueError('could not find requested runtime for this job')
 
-    @catch_exception
+    @log_exception
     def resume_calc(self):
         self.log.debug('Attempting to resume calculation')
         try:
@@ -530,7 +541,7 @@ class Calc(object):
         self.status['calc_cutoff'] = None
         self._setup_and_run(com_name)
 
-    @catch_exception
+    @log_exception
     def _copy_in_restart(self):
         self.log.debug('Copying rwf and chk files to scratch for restart')
         bn = self._base_name
@@ -550,7 +561,7 @@ class Calc(object):
                       f'directory: {self.last_scratch_path}\nto node scratch '
                       f'dir: {self.scratch_path}')
 
-    @catch_exception
+    @log_exception
     def _update_g_in_for_restart(self):
         self.log.debug('Updating Gaussian input for restart')
         com_name = self.status['g_in_curr']
@@ -568,7 +579,7 @@ class Calc(object):
                       f'and to use all the memory on this node')
         return com_name
 
-    @catch_exception
+    @log_exception
     def _next_calc(self):
         self.log.debug('Moving on to next level calculation')
         out_path = pathlib.Path(self.status['g_in_curr']).with_suffix('.out')
@@ -578,13 +589,21 @@ class Calc(object):
             self._setup_and_run(com_name)
         except self.NoMoreLevels:
             self.log.info('No more calculation levels to complete! Completed '
-                          f'all {self.current_lvl} levels. Exiting')
+                          f'all {self.current_lvl} levels')
+            if self.next_job_id is not None:
+                cl = ['qdel', self.next_job_id]
+                output = subprocess.check_output(cl, stderr=subprocess.STDOUT)
+                self.log.info('Cancelled job resubmission. qdel said: '
+                              f'{output}')
+            else:
+                self.log.warning('Do not know job id of resubmission so '
+                                 'unable to delete it.')
         # This will get nested, but likely no more than twice (unless the
         # optimizations are very quick). This shouldn't be an issue,
         # and should never get near the recursion limit unless something goes
         # very wrong.
 
-    @catch_exception
+    @log_exception
     def _create_opt_xyz(self, out_path: pathlib.Path):
         self.log.debug('Converting output to xyz file for next level')
         xyz_path_str = str(out_path.with_suffix('.xyz'))
@@ -679,6 +698,8 @@ class StatusDict(dict):
 
     * output_scratch_path: str of path to where output is in the scratch
         directory
+
+    * job_id: str of the job number from the sun grid system
 
     """
     def __init__(self, path):
