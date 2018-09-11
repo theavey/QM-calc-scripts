@@ -218,9 +218,8 @@ class Calc(object):
             self.last_scratch_path = pathlib.Path(self.status[
                                                       'current_scratch_dir'])
             self.status['last_scratch_dir'] = str(self.last_scratch_path)
-            self.chk_ln_path = pathlib.Path(self.status['chk_ln_path'])
-            self.output_scratch_path = pathlib.Path(
-                self.status['output_scratch_path'])
+            self._get_chk_ln_path()
+            self._get_output_scratch_path()
         else:
             self.status['args'] = self.args
             self.status['base_name'] = self._base_name
@@ -233,6 +232,25 @@ class Calc(object):
         self.status['cwd'] = str(self.cwd_path)
         self.log.info('Submitted from {} and will be running in {}'.format(
             self.cwd_path, self.scratch_path))
+
+    @log_exception
+    def _get_output_scratch_path(self):
+        self.log.debug('Getting path to scratch output')
+        try:
+            self.output_scratch_path = pathlib.Path(
+                self.status['output_scratch_path'])
+        except KeyError:
+            self.output_scratch_path = self.last_scratch_path.joinpath(
+                self.status['g_in_curr']).with_suffix('.out')
+
+    @log_exception
+    def _get_chk_ln_path(self):
+        self.log.debug('Getting path to linked chk file')
+        try:
+            self.chk_ln_path = pathlib.Path(self.status['chk_ln_path'])
+        except KeyError:
+            self.chk_ln_path = pathlib.Path(
+                f'{self._base_name}-running.chk').resolve()
 
     @log_exception
     def run_calc(self):
