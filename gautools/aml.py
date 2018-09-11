@@ -474,8 +474,13 @@ class Calc(object):
             self.chk_ln_path.unlink()
             self.log.debug(f'Unlinked checkpoint run file: {self.chk_ln_path}')
         chk_name = f'{self._base_name}.chk'
-        shutil.copy(str(scratch_path.joinpath(chk_name)), chk_name)
-        self.log.debug(f'Copied back checkpoint file to {chk_name}')
+        scr_chk_path = scratch_path.joinpath(chk_name)
+        if scr_chk_path.exists():
+            shutil.copy(str(scr_chk_path), chk_name)
+            self.log.debug(f'Copied back checkpoint file to {chk_name}')
+        else:
+            self.log.debug(f'chk file not found at {scr_chk_path} so not '
+                           f'copied back')
         self.status['cleaned_up'] = True
 
     @log_exception
