@@ -428,7 +428,7 @@ class Calc(object):
         if not killed:
             out_path = pathlib.Path(com_name.replace('com', 'out'))
         else:
-            outs = list(self.cwd_path.glob(com_name[:-4]+'-*.out'))
+            outs = [str(p) for p in self.cwd_path.glob(com_name[:-4]+'-*.out')]
             if not outs:
                 new_out = com_name[:-4]+'-1.out'
             else:
@@ -436,7 +436,7 @@ class Calc(object):
                 outs.sort(key=len)
                 new_out = re.sub(r'(\d+)\.out',
                                  lambda m: '{}.out'.format(int(m.group(1))+1),
-                                 str(outs[-1]))
+                                 outs[-1])
             out_path = pathlib.Path(new_out).resolve()
         paratemp.copy_no_overwrite(str(self.output_scratch_path),
                                    str(out_path))
