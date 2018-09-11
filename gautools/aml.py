@@ -400,8 +400,7 @@ class Calc(object):
 
     def _signal_catch_time(self, signum, frame):
         self.log.warning(f'Caught {signal.Signals(signum).name} signal! '
-                         'Trying to quit Gaussian and resubmit continuation '
-                         'calculation')
+                         'Trying to quit Gaussian')
         raise self.TimesUp
 
     def _signal_catch_done(self, signum, frame):
