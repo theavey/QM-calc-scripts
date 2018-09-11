@@ -52,6 +52,7 @@ import thtools
 import time
 from gautools import tools
 import functools
+import filecmp
 
 if not sys.version_info >= (3, 6):
     raise ValueError('Python >= 3.6 is required')
@@ -458,9 +459,17 @@ class Calc(object):
                                  lambda m: '{}.out'.format(int(m.group(1))+1),
                                  outs[-1])
             out_path = pathlib.Path(new_out).resolve()
-        paratemp.copy_no_overwrite(str(self.output_scratch_path),
-                                   str(out_path))
-        self.log.debug(f'Copied back output file to {out_path}')
+        try:
+            paratemp.copy_no_overwrite(str(self.output_scratch_path),
+                                       str(out_path))
+            self.log.debug(f'Copied back output file to {out_path}')
+        except FileExistsError:
+            if filecmp.cmp(str(self.output_scratch_path), str(out_path),
+                           shallow=False):
+                self.log.debug("Don't need to copy back output as it's already "
+                               f"at {out_path}")
+            else:
+                raise
         if self.chk_ln_path.exists():
             self.chk_ln_path.unlink()
             self.log.debug(f'Unlinked checkpoint run file: {self.chk_ln_path}')
