@@ -458,6 +458,7 @@ class Calc(object):
         if 'normal termination' not in output.lower():
             self.log.error(f'Abnormal termination of Gaussian job in output: '
                            f'{filepath}')
+            self._qdel_next_job()
             raise ValueError('Gaussian did not finish normally. See output: '
                              f'{filepath}')
         self.log.info(f'Normal termination of Gaussian job! Output at '
@@ -593,18 +594,22 @@ class Calc(object):
         except self.NoMoreLevels:
             self.log.info('No more calculation levels to complete! Completed '
                           f'all {self.current_lvl} levels')
-            if self.next_job_id is not None:
-                cl = ['qdel', self.next_job_id]
-                output = subprocess.check_output(cl, stderr=subprocess.STDOUT)
-                self.log.info('Cancelled job resubmission. qdel said: '
-                              f'{output}')
-            else:
-                self.log.warning('Do not know job id of resubmission so '
-                                 'unable to delete it.')
+            self._qdel_next_job()
         # This will get nested, but likely no more than twice (unless the
         # optimizations are very quick). This shouldn't be an issue,
         # and should never get near the recursion limit unless something goes
         # very wrong.
+
+    def _qdel_next_job(self):
+        self.log.debug('Deleting the re-submitted job from the queue')
+        if self.next_job_id is not None:
+            cl = ['qdel', self.next_job_id]
+            output = subprocess.check_output(cl, stderr=subprocess.STDOUT)
+            self.log.info('Cancelled job resubmission. qdel said: '
+                          f'{output}')
+        else:
+            self.log.warning('Do not know job id of resubmission so '
+                             'unable to delete it.')
 
     @log_exception
     def _create_opt_xyz(self, out_path: pathlib.Path):
