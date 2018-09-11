@@ -642,10 +642,16 @@ class StatusDict(dict):
             super(StatusDict, self).__init__(d)
         else:
             super(StatusDict, self).__init__()
+        self.log = logging.getLogger(__name__)
 
     def __setitem__(self, key, value):
-        super(StatusDict, self).__setitem__(key, value)
-        json.dump(self, open(self.path, 'w'))
+        try:
+            super(StatusDict, self).__setitem__(key, value)
+            json.dump(self, open(self.path, 'w'))
+        except Exception:
+            self.log.exception('Exception raised when trying to write status '
+                               'file!')
+            raise
 
 
 if __name__ == '__main__':
