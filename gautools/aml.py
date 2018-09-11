@@ -555,11 +555,14 @@ class Calc(object):
             mes = f'Could not find old chk file at {old_chk_path}'
             self.log.error(mes)
             raise FileNotFoundError(mes)
-        shutil.copy(str(old_rwf_path), str(self.scratch_path))
-        shutil.copy(str(old_chk_path), str(self.scratch_path))
-        self.log.info(f'Copied rwf and chk files from last scratch '
-                      f'directory: {self.last_scratch_path}\nto node scratch '
-                      f'dir: {self.scratch_path}')
+        try:
+            shutil.copy(str(old_rwf_path), str(self.scratch_path))
+            shutil.copy(str(old_chk_path), str(self.scratch_path))
+            self.log.info(f'Copied rwf and chk files from last scratch '
+                          f'directory: {self.last_scratch_path}\nto node '
+                          f'scratch dir: {self.scratch_path}')
+        except shutil.SameFileError:
+            self.log.info('Working on the same node; no need to copy files')
 
     @log_exception
     def _update_g_in_for_restart(self):
