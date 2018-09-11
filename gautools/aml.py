@@ -443,15 +443,17 @@ class Calc(object):
             :return: None
             """
         self.log.debug('Setting up for calculation resubmission')
-        self.resub_cl = ['qsub', '-notify',
-                         '-pe', 'omp', f'{self.n_slots}',
-                         '-M', 'theavey@bu.edu',
-                         '-m', 'eas',
-                         '-l', f'h_rt={self.h_rt}',
-                         '-N', self._base_name,
-                         '-j', 'y',
-                         '-o', self.stdout_file,
-                         'aml', '--restart', self._json_name]
+        arg_d = dict(pe=f'omp {self.n_slots}', M='theavey@bu.edu', m='eas',
+                     l=f'h_rt={self.h_rt}', N=self._base_name, j='y',
+                     o=self.stdout_file, notify='')
+        sub_sh_path = self.scratch_path.joinpath('resub.sh')
+        curr_file = pathlib.Path(__file__).resolve()
+        with sub_sh_path.open('w') as sub_sh:
+            sub_sh.write('#!/bin/bash -l\n\n')
+            for key in arg_d:
+                sub_sh.write(f'#$ -{key} {arg_d[key]}\n')
+            sub_sh.write(f'\n{curr_file} --restart {self._json_name}\n\n')
+        self.resub_cl = ['qsub', str(sub_sh_path)]
 
     def _get_h_rt(self):
         """
