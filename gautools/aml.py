@@ -233,7 +233,6 @@ class Calc(object):
         self.status['cwd'] = str(self.cwd_path)
         self.log.info('Submitted from {} and will be running in {}'.format(
             self.cwd_path, self.scratch_path))
-        self.resub_calc()
 
     @log_exception
     def run_calc(self):
@@ -319,6 +318,7 @@ class Calc(object):
         chk_ln_path.symlink_to(self.scratch_path.joinpath(f'{bn}.chk'))
         self.log.info(f'Linked checkpoint file as {chk_ln_path}')
         self.status['g_in_curr'] = com_name
+        self.resub_calc()
         self.status['cleaned_up'] = False
         killed = self._run_gaussian(com_name)
         self.status['calc_cutoff'] = killed
