@@ -56,6 +56,27 @@ import functools
 if not sys.version_info >= (3, 6):
     raise ValueError('Python >= 3.6 is required')
 
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+handler.setLevel(logging.ERROR)
+formatter = logging.Formatter('%(asctime)s - %(name)s - '
+                              '%(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+log.addHandler(handler)
+
+
+def catch_exception(f):
+    @functools.wraps(f)
+    def func(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except Exception:
+            log.exception(f'An exception was raised in {f.__name__}!')
+            raise
+
+    return func
+
 
 class Calc(object):
 
@@ -138,16 +159,6 @@ class Calc(object):
         self.h_rt: str = None
         self.stdout_file: str = None
         self.resub_cl: list[str] = None
-
-    def catch_exception(self, f):
-        @functools.wraps(f)
-        def func(*argss, **kwargs):
-            try:
-                return f(*argss, **kwargs)
-            except Exception:
-                self.log.exception(f'An exception was raised in {f.__name__}!')
-                raise
-        return func
 
     @property
     def status(self):
