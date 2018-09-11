@@ -425,9 +425,15 @@ class Calc(object):
     def resub_calc(self):
         self.log.info(f'resubmitting job with the following commandline:\n'
                       f'{self.resub_cl}')
-        output = subprocess.check_output(self.resub_cl,
-                                         stderr=subprocess.STDOUT)
-        self.log.info(f'The following was returned from qsub:\n{output}')
+        proc = subprocess.run(self.resub_cl,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT,
+                              universal_newlines=True)
+        self.log.info(f'The following was returned from qsub:\n{proc.stdout}')
+        if proc.returncode:
+            self.log.error('Resubmission of calculation failed with '
+                           f'returncode {proc.returncode}')
+            proc.check_returncode()
 
     def _make_resub_cl(self):
         """
