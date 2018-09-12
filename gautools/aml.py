@@ -172,7 +172,6 @@ class Calc(object):
             if self.args[key] is None:
                 raise ValueError(f'Argument "{key}" cannot be None')
 
-    @log_exception
     def _startup_tasks(self):
         """
         Some startup tasks to set variables for later use
@@ -234,7 +233,6 @@ class Calc(object):
         self.log.info('Submitted from {} and will be running in {}'.format(
             self.cwd_path, self.scratch_path))
 
-    @log_exception
     def _get_output_scratch_path(self):
         self.log.debug('Getting path to scratch output')
         try:
@@ -244,7 +242,6 @@ class Calc(object):
             self.output_scratch_path = self.last_scratch_path.joinpath(
                 self.status['g_in_curr']).with_suffix('.out')
 
-    @log_exception
     def _get_chk_ln_path(self):
         self.log.debug('Getting path to linked chk file')
         try:
@@ -272,7 +269,6 @@ class Calc(object):
                              'Starting new calculation?')
             self.new_calc()
 
-    @log_exception
     def _make_rand_xyz(self):
         self.log.debug('Making XYZ file to start calculation')
         import tables
@@ -318,7 +314,6 @@ class Calc(object):
         self.status['starting_xyz'] = xyz_name
         return pathlib.Path(xyz_name).resolve()
 
-    @log_exception
     def new_calc(self):
         self.log.debug('Setting up a new calculation')
         xyz_path = self._make_rand_xyz()
@@ -327,7 +322,6 @@ class Calc(object):
         com_name = self._make_g_in(xyz_path)
         self._setup_and_run(com_name)
 
-    @log_exception
     def _setup_and_run(self, com_name):
         self.log.debug('Starting setup to run Gaussian')
         bn = self._base_name
@@ -354,14 +348,12 @@ class Calc(object):
             self._copy_and_cleanup()
             self._next_calc()
 
-    @log_exception
     def _advance_level(self):
         self.log.debug(f'Advancing from {self.current_lvl}')
         self.status['between_levels'] = True
         self.current_lvl += 1
         self.status['current_lvl'] = self.current_lvl
 
-    @log_exception
     def _make_g_in(self, xyz_path):
         self.log.debug(f'Making new Gaussian input from {xyz_path}')
         bn = self._base_name
@@ -387,7 +379,6 @@ class Calc(object):
         self.status[f'g_in_{lvl}'] = com_name
         return com_name
 
-    @log_exception
     def _run_gaussian(self, com_name):
         self.log.debug('Doing final setup to run Gaussian')
         out_name = com_name.replace('com', 'out')
@@ -435,7 +426,6 @@ class Calc(object):
                          f'Likely, this was because Gaussian process exited')
         raise self.GaussianDone
 
-    @log_exception
     def _check_proc(self, proc):
         self.log.debug('Started process to check on Gaussian completion')
         while proc.poll() is None:
@@ -443,7 +433,6 @@ class Calc(object):
         self.log.warning('Gaussian process no longer running. Sending SIGUSR1')
         os.kill(os.getpid(), signal.SIGUSR1)
 
-    @log_exception
     def _copy_and_cleanup(self):
         self.log.debug('Attempting to copy back files and unlink chk file')
         com_name: str = self.status['g_in_curr']
@@ -489,7 +478,6 @@ class Calc(object):
                            f'copied back')
         self.status['cleaned_up'] = True
 
-    @log_exception
     def _check_normal_completion(self, filepath):
         self.log.debug('Attempting to check for completion status of Gaussian')
         output = subprocess.check_output(['tail', '-n', '1', str(filepath)],
@@ -503,7 +491,6 @@ class Calc(object):
         self.log.info(f'Normal termination of Gaussian job! Output at '
                       f'{filepath}')
 
-    @log_exception
     def resub_calc(self):
         self.log.info(f'resubmitting job with the following commandline:\n'
                       f'{self.resub_cl}')
@@ -524,7 +511,6 @@ class Calc(object):
                              'command. Will not be able to cancel it if this '
                              'Calc is completed')
 
-    @log_exception
     def _make_resub_sh_and_cl(self):
         """
             Make command line for a calculation for resuming in another job
@@ -548,7 +534,6 @@ class Calc(object):
         self.log.info(f'Wrote resubmission script to {sub_sh_path}')
         self.resub_cl = ['qsub', str(sub_sh_path)]
 
-    @log_exception
     def _get_h_rt(self):
         """
         Find the amount of time requested for the currently running job
@@ -567,7 +552,6 @@ class Calc(object):
         self.log.error('Could not find requested run time!')
         raise ValueError('could not find requested runtime for this job')
 
-    @log_exception
     def resume_calc(self):
         self.log.debug('Attempting to resume calculation')
         try:
@@ -592,7 +576,6 @@ class Calc(object):
             self._copy_in_restart()
             self._setup_and_run(com_name)
 
-    @log_exception
     def _check_between_levels(self):
         # Might need to look for rwf file otherwise should start the
         # calculation again
@@ -611,7 +594,6 @@ class Calc(object):
             pass
         return True
 
-    @log_exception
     def _copy_in_restart(self):
         self.log.debug('Copying rwf and chk files to scratch for restart')
         bn = self._base_name
@@ -634,7 +616,6 @@ class Calc(object):
         except shutil.SameFileError:
             self.log.info('Working on the same node; no need to copy files')
 
-    @log_exception
     def _update_g_in_for_restart(self):
         self.log.debug('Updating Gaussian input for restart')
         com_name = self.status['g_in_curr']
@@ -652,7 +633,6 @@ class Calc(object):
                       f'and to use all the memory on this node')
         return com_name
 
-    @log_exception
     def _next_calc(self):
         self.log.debug('Moving on to next level calculation')
         out_path = pathlib.Path(self.status['g_in_curr']).with_suffix('.out')
@@ -680,7 +660,6 @@ class Calc(object):
             self.log.warning('Do not know job id of resubmission so '
                              'unable to delete it.')
 
-    @log_exception
     def _create_opt_xyz(self, out_path: pathlib.Path):
         self.log.debug('Converting output to xyz file for next level')
         xyz_path_str = str(out_path.with_suffix('.xyz'))
