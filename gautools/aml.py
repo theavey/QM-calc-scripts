@@ -60,7 +60,7 @@ if not sys.version_info >= (3, 6):
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 handler = logging.StreamHandler()
-handler.setLevel(logging.ERROR)
+handler.setLevel(logging.WARNING)
 formatter = logging.Formatter('%(asctime)s - %(name)s - '
                               '%(levelname)s - %(message)s')
 handler.setFormatter(formatter)
@@ -69,14 +69,14 @@ log.addHandler(handler)
 
 def log_exception(f):
     @functools.wraps(f)
-    def func(*args, **kwargs):
+    def log_exc(*args, **kwargs):
         try:
             return f(*args, **kwargs)
         except Exception:
             log.exception(f'An exception was raised in {f.__name__}!')
             raise
 
-    return func
+    return log_exc
 
 
 class Calc(object):
@@ -184,7 +184,7 @@ class Calc(object):
         try:
             node = os.environ['HOSTNAME'].split('.')[0]
         except KeyError:
-            self.log.error('Could not find HOSTNAME!')
+            self.log.exception('Could not find HOSTNAME!')
             raise
         self.node = node
         scratch_path = pathlib.Path('/net/{}/scratch/theavey'.format(node))
@@ -193,13 +193,13 @@ class Calc(object):
         try:
             self.job_id = os.environ['JOB_ID']
         except KeyError:
-            self.log.error('Could not find JOB_ID!')
+            self.log.exception('Could not find JOB_ID!')
             raise
         self.mem = thtools.job_tools.get_node_mem()
         try:
             n_slots = int(os.environ['NSLOTS'])
         except KeyError:
-            self.log.error('Could not find NSLOTS!')
+            self.log.exception('Could not find NSLOTS!')
             raise
         self.n_slots = n_slots
         self.h_rt = self._get_h_rt()
@@ -209,7 +209,7 @@ class Calc(object):
             self.stdout_file = os.environ['SGE_STDOUT_PATH']
             self.log.debug(f'Using stdout path: {self.stdout_file}')
         except KeyError:
-            self.log.error('Could not find SGE_STDOUT_PATH!')
+            self.log.exception('Could not find SGE_STDOUT_PATH!')
             raise
         self._make_resub_sh_and_cl()
         if self.status:
@@ -550,16 +550,16 @@ class Calc(object):
             if m:
                 self.log.debug(f'Found required info: {m.group(0)}')
                 return m.group(1)
-        self.log.error('Could not find requested run time!')
-        raise ValueError('could not find requested runtime for this job')
+        self.log.error('Could not find requested run time! Assuming 24 hours')
+        return '24:00:00'
 
     def resume_calc(self):
         self.log.debug('Attempting to resume calculation')
         try:
             cleaned = self.status['cleaned_up']
         except KeyError:
-            self.log.error('Could not find "cleaned_up" in status. Assuming '
-                           'dirty')
+            self.log.warning('Could not find "cleaned_up" in status. Assuming '
+                             'dirty')
             cleaned = False
         if not cleaned:
             self._copy_and_cleanup()
@@ -816,17 +816,17 @@ if __name__ == '__main__':
     parser.add_argument('--restart', default=None,
                         help='Path to status file for resuming an already '
                              'started calculation')
-    args = parser.parse_args()
-    if args.restart is not None:
-        calc = Calc(status=args.restart)
+    p_args = parser.parse_args()
+    if p_args.restart is not None:
+        calc = Calc(status=p_args.restart)
     else:
-        ugt_dicts = json.load(open(args.ugt_dicts, 'r'))
-        calc = Calc(base_name=args.base_name,
-                    ind=args.index,
-                    top=args.top,
-                    traj=args.trajectory,
-                    criteria=dict(args.criteria),
-                    react_dist=args.react_dist,
+        ugt_dicts = json.load(open(p_args.ugt_dicts, 'r'))
+        calc = Calc(base_name=p_args.base_name,
+                    ind=p_args.index,
+                    top=p_args.top,
+                    traj=p_args.trajectory,
+                    criteria=dict(p_args.criteria),
+                    react_dist=p_args.react_dist,
                     ugt_dicts=ugt_dicts
                     )
     calc.run_calc()
