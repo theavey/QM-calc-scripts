@@ -685,7 +685,8 @@ class Calc(object):
         cl = ['obabel', str(out_path), '-O',
               xyz_path_str]
         proc = subprocess.run(cl, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT)
+                              stderr=subprocess.STDOUT,
+                              universal_newlines=True)
         if proc.returncode or \
                 '1 molecule converted' not in proc.stdout.lower():
             mes = (f'obabel failed to convert {out_path} to an xyz file. '
