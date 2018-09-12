@@ -350,10 +350,16 @@ class Calc(object):
             self._check_normal_completion(self.output_scratch_path)
             self.log.info(f'Seemed to correctly finish level {self.current_lvl}'
                           f' calculation. Moving on to next level')
-            self.current_lvl += 1
-            self.status['current_lvl'] = self.current_lvl
+            self._advance_level()
             self._copy_and_cleanup()
             self._next_calc()
+
+    @log_exception
+    def _advance_level(self):
+        self.log.debug(f'Advancing from {self.current_lvl}')
+        self.status['between_levels'] = True
+        self.current_lvl += 1
+        self.status['current_lvl'] = self.current_lvl
 
     @log_exception
     def _make_g_in(self, xyz_path):
@@ -576,6 +582,7 @@ class Calc(object):
             self.log.warning('No key in status for determining if between '
                              'levels currently')
             between_levels = self._check_between_levels()
+            self.status['between_levels'] = between_levels
         if between_levels:
             self._next_calc()
         else:
@@ -592,6 +599,11 @@ class Calc(object):
         lvl = self.current_lvl
         try:
             if self.status[f'g_in_{lvl}'] == self.status['g_in_curr']:
+                out_path = pathlib.Path(
+                    self.status['g_in_curr']).with_suffix('.out')
+                if out_path.exists():
+                    self._advance_level()
+                    return True
                 return False
         except KeyError:
             pass
@@ -641,7 +653,6 @@ class Calc(object):
     @log_exception
     def _next_calc(self):
         self.log.debug('Moving on to next level calculation')
-        self.status['between_levels'] = True
         out_path = pathlib.Path(self.status['g_in_curr']).with_suffix('.out')
         xyz_path_str = self._create_opt_xyz(out_path)
         try:
