@@ -142,7 +142,7 @@ class Calc(object):
         self.criteria = criteria
         self.react_dist = react_dist
         self.ugt_dicts = ugt_dicts
-        self.log = logging.getLogger(self.__name__)
+        self.log = logging.getLogger(self.__class__.__name__)
         self.log.setLevel(logging.DEBUG)
         f_handler = logging.FileHandler('{}.log'.format(self._base_name))
         f_handler.setLevel(logging.DEBUG)
