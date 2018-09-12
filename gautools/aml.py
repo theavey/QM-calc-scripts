@@ -67,6 +67,11 @@ handler.setFormatter(formatter)
 log.addHandler(handler)
 
 
+obabel_module_lines = ('\n'
+                       'module load wxwidgets/3.0.2\n'
+                       'module load openbabel/2.4.1\n')
+
+
 def log_exception(f):
     @functools.wraps(f)
     def log_exc(*args, **kwargs):
@@ -536,6 +541,7 @@ class Calc(object):
             sub_sh.write('#!/bin/bash -l\n\n')
             for key in arg_d:
                 sub_sh.write(f'#$ -{key} {arg_d[key]}\n')
+            sub_sh.write(obabel_module_lines)
             sub_sh.write(f'\n{curr_file} --restart {self._json_name}\n\n')
         self.log.info(f'Wrote resubmission script to {sub_sh_path}')
         self.resub_cl = ['qsub', str(sub_sh_path)]
