@@ -111,6 +111,7 @@ class Calc(object):
         :return:
         """
         if status is not None:
+            # TODO this could be done (better?) with a classmethod
             self._status = StatusDict(status)
             self._json_name = status
             self.args = self.status['args']
