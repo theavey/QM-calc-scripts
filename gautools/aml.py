@@ -342,11 +342,14 @@ class Calc(object):
             self.log.info('Exited from function running Gaussian because '
                           'SIGUSR2')
         else:
-            self._check_normal_completion(self.output_scratch_path)
-            self.log.info(f'Seemed to correctly finish level {self.current_lvl}'
-                          f' calculation. Moving on to next level')
-            self._advance_level()
-            self._copy_and_cleanup()
+            try:
+                self._check_normal_completion(self.output_scratch_path)
+                self.log.info(f'Seemed to correctly finish level '
+                              f'{self.current_lvl} calculation. Moving on to '
+                              f'next level')
+                self._advance_level()
+            finally:
+                self._copy_and_cleanup()
             self._next_calc()
 
     def _advance_level(self):
@@ -487,8 +490,8 @@ class Calc(object):
             self.log.error(f'Abnormal termination of Gaussian job in output: '
                            f'{filepath}')
             self._qdel_next_job()
-            raise ValueError('Gaussian did not finish normally. See output: '
-                             f'{filepath}')
+            raise self.GaussianError('Gaussian did not finish normally. '
+                                     f'See output: {filepath}')
         self.log.info(f'Normal termination of Gaussian job! Output at '
                       f'{filepath}')
 
@@ -680,13 +683,19 @@ class Calc(object):
                       f'{xyz_path_str}')
         return xyz_path_str
 
-    class TimesUp(Exception):
+    class SignalMessage(Exception):
         pass
 
-    class GaussianDone(Exception):
+    class TimesUp(SignalMessage):
+        pass
+
+    class GaussianDone(SignalMessage):
         pass
 
     class NoMoreLevels(Exception):
+        pass
+
+    class GaussianError(Exception):
         pass
 
 
