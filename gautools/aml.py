@@ -781,7 +781,7 @@ class StatusDict(dict):
             super(StatusDict, self).__init__(d)
         else:
             super(StatusDict, self).__init__()
-        self.log = logging.getLogger(self.__name__)
+        self.log = logging.getLogger(self.__class__.__name__)
 
     def __setitem__(self, key, value):
         try:
