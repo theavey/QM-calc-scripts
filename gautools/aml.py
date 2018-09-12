@@ -142,14 +142,14 @@ class Calc(object):
         self.criteria = criteria
         self.react_dist = react_dist
         self.ugt_dicts = ugt_dicts
-        self.log = logging.getLogger(__name__)
+        self.log = logging.getLogger(self.__name__)
         self.log.setLevel(logging.DEBUG)
-        handler = logging.FileHandler('{}.log'.format(self._base_name))
-        handler.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - '
-                                      '%(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        self.log.addHandler(handler)
+        f_handler = logging.FileHandler('{}.log'.format(self._base_name))
+        f_handler.setLevel(logging.DEBUG)
+        f_formatter = logging.Formatter('%(asctime)s - %(name)s - '
+                                        '%(levelname)s - %(message)s')
+        f_handler.setFormatter(f_formatter)
+        self.log.addHandler(f_handler)
         self.log.debug('Initializing the log')
         self.mem, self.node = None, None
         self.scratch_path: pathlib.Path = None
