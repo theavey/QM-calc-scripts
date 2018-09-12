@@ -524,7 +524,7 @@ class Calc(object):
                      l=f'h_rt={self.h_rt}', N=self._base_name, j='y',
                      o=self.stdout_file, notify='', hold_jid=self.job_id)
         resub_dir_path = self.cwd_path.joinpath('resub_scripts')
-        resub_dir_path..mkdir(exist_ok=True)
+        resub_dir_path.mkdir(exist_ok=True)
         sub_sh_path = resub_dir_path.joinpath('resub.sh')
         curr_file = pathlib.Path(__file__).resolve()
         with sub_sh_path.open('w') as sub_sh:
