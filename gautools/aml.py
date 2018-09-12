@@ -212,7 +212,6 @@ class Calc(object):
         except KeyError:
             self.log.exception('Could not find SGE_STDOUT_PATH!')
             raise
-        self._make_resub_sh_and_cl()
         if self.status:
             self.last_node = self.status['current_node']
             self.status['last_node'] = self.last_node
@@ -234,6 +233,7 @@ class Calc(object):
         self.status['cwd'] = str(self.cwd_path)
         self.log.info('Submitted from {} and will be running in {}'.format(
             self.cwd_path, self.scratch_path))
+        self._make_resub_sh_and_cl()
 
     def _get_output_scratch_path(self):
         self.log.debug('Getting path to scratch output')
