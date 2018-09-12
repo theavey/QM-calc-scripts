@@ -163,6 +163,7 @@ class Calc(object):
         self.resub_cl: list[str] = None
         self.job_id: str = None
         self.next_job_id: str = None
+        self.resubmitted: bool = False
 
     @property
     def status(self):
@@ -331,7 +332,8 @@ class Calc(object):
         self.status['chk_ln_path'] = str(chk_ln_path)
         chk_ln_path.symlink_to(self.scratch_path.joinpath(f'{bn}.chk'))
         self.log.info(f'Linked checkpoint file as {chk_ln_path}')
-        self.resub_calc()
+        if not self.resubmitted:
+            self.resub_calc()
         self.status['g_in_curr'] = com_name
         self.status['cleaned_up'] = False
         self.status['between_levels'] = False
@@ -504,12 +506,12 @@ class Calc(object):
                               universal_newlines=True)
         self.log.info(f'The following was returned from qsub:\n{proc.stdout}')
         if proc.returncode:
-            self.log.error('Resubmission of calculation failed with '
-                           f'returncode {proc.returncode}')
-            proc.check_returncode()
+            self.log.exception('Resubmission of calculation failed with '
+                               f'returncode {proc.returncode}')
         match = re.search(r'(\d+)\s\("(\w.*)"\)', proc.stdout)
         if match:
             self.next_job_id = match.group(1)
+            self.resubmitted = True
         else:
             self.log.warning('Could not find submitted job id from qsub '
                              'command. Will not be able to cancel it if this '
