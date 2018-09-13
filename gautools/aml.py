@@ -524,11 +524,11 @@ class Calc(object):
 
     def _make_resub_sh_and_cl(self):
         """
-            Make command line for a calculation for resuming in another job
+        Make command line for a calculation for resuming in another job
 
-            Requires SGE_STDOUT_PATH and JOB_ID for running `qstat`
-            :return: None
-            """
+        Requires SGE_STDOUT_PATH and JOB_ID for running `qstat`
+        :return: None
+        """
         self.log.debug('Setting up for calculation resubmission')
         arg_d = dict(pe=f'omp {self.n_slots}', M='theavey@bu.edu', m='eas',
                      l=f'h_rt={self.h_rt}', N=self._base_name, j='y',
