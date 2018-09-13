@@ -651,11 +651,17 @@ class Calc(object):
         xyz_path_str = self._create_opt_xyz(out_path)
         try:
             com_name = self._make_g_in(xyz_path_str)
-            self._setup_and_run(com_name)
         except self.NoMoreLevels:
             self.log.info('No more calculation levels to complete! Completed '
                           f'all {self.current_lvl} levels')
             self._qdel_next_job()
+            return None
+        except FileExistsError:
+            self.log.warning(f'Gaussian input file for level '
+                             f'{self.current_lvl} already exists! This file '
+                             f'will be used to start a new calculation')
+            com_name = f'{self._base_name}-lvl{self.current_lvl}.com'
+        self._setup_and_run(com_name)
         # This will get nested, but likely no more than twice (unless the
         # optimizations are very quick). This shouldn't be an issue,
         # and should never get near the recursion limit unless something goes
