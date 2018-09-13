@@ -117,6 +117,7 @@ class Calc(object):
         """
         if status is not None:
             # TODO this could be done (better?) with a classmethod
+            self.rerun = True
             self._status = StatusDict(status)
             self._json_name = status
             self.args = self.status['args']
@@ -129,8 +130,8 @@ class Calc(object):
             react_dist = a['react_dist']
             ugt_dicts = a['ugt_dicts']
             self._base_name = self.status['base_name']
-            self.current_lvl = self.status['current_lvl']
         else:
+            self.rerun = False
             self.args = {
                 'base_name': base_name,
                 'ind': ind, 'top': top, 'traj': traj,
@@ -140,7 +141,6 @@ class Calc(object):
             self.check_args()
             self._base_name = '{}-ind{}'.format(base_name, ind)
             self._json_name = '{}.json'.format(self._base_name)
-            self.current_lvl = None
             self._status = StatusDict(self._json_name)
         self.top = top
         self.traj = traj
@@ -170,14 +170,80 @@ class Calc(object):
         self.next_job_id: str = None
         self.resubmitted: bool = False
 
-    @property
-    def status(self):
-        return self._status
-
     def check_args(self):
         for key in self.args:
             if self.args[key] is None:
                 raise ValueError(f'Argument "{key}" cannot be None')
+
+    @property
+    def status(self):
+        return self._status
+
+    @property
+    def current_lvl(self):
+        try:
+            return self.status['current_lvl']
+        except KeyError:
+            raise AttributeError('Could not find current level')
+
+    @current_lvl.setter
+    def current_lvl(self, value):
+        if (not isinstance(value, int)) or (value is not None):
+            raise TypeError('current_level must be an int or None.'
+                            f'Given type {type(value)}')
+        self.status['current_lvl'] = value
+
+    @property
+    def between_levels(self):
+        # Might need to look for rwf file otherwise should start the
+        # calculation again
+        self.log.debug('Checking to see if calculation left off between '
+                       'calculation levels')
+        try:
+            between = self.status['between_levels']
+        except KeyError:
+            self.log.warning('No key in status for determining if between '
+                             'levels currently')
+            lvl = self.current_lvl
+            try:
+                if self.status[f'g_in_{lvl}'] == self.status['g_in_curr']:
+                    out_path = pathlib.Path(
+                        self.status['g_in_curr']).with_suffix('.out')
+                    if out_path.exists():
+                        self._advance_level()
+                        between = True
+                    between = False
+                else:
+                    between = True
+            except KeyError:
+                between = True
+            self.status['between_levels'] = between
+        return between
+
+    @between_levels.setter
+    def between_levels(self, value):
+        if not isinstance(value, bool):
+            raise TypeError(f'between_levels must be a bool, given type '
+                            f'{type(value)}')
+        self.status['between_levels'] = value
+
+    @property
+    def cleaned_up(self):
+        try:
+            cleaned = self.status['cleaned_up']
+        except KeyError:
+            self.log.warning('Could not find "cleaned_up" in status. Assuming '
+                             'dirty')
+            cleaned = False
+            self.status['cleaned_up'] = cleaned
+        return cleaned
+
+    @cleaned_up.setter
+    def cleaned_up(self, value):
+        if not isinstance(value, bool):
+            raise TypeError(f'cleaned_up must be a bool, given type '
+                            f'{type(value)}')
+        self.status['cleaned_up'] = value
 
     def _startup_tasks(self):
         """
@@ -217,7 +283,7 @@ class Calc(object):
         except KeyError:
             self.log.exception('Could not find SGE_STDOUT_PATH!')
             raise
-        if self.status:
+        if self.rerun:
             self.last_node = self.status['current_node']
             self.status['last_node'] = self.last_node
             node_list = self.status['node_list']
@@ -265,9 +331,8 @@ class Calc(object):
         :return: None
         """
         self.log.debug('Welcome. Just starting to run this calculation')
-        rerun = True if self.status else False
         self._startup_tasks()
-        if rerun:
+        if self.rerun:
             self.log.info('loaded previous status file: {}'.format(
                 self._json_name))
             self.resume_calc()
@@ -325,7 +390,6 @@ class Calc(object):
         self.log.debug('Setting up a new calculation')
         xyz_path = self._make_rand_xyz()
         self.current_lvl = 0
-        self.status['current_lvl'] = 0
         com_name = self._make_g_in(xyz_path)
         self._setup_and_run(com_name)
 
@@ -340,8 +404,8 @@ class Calc(object):
         if not self.resubmitted:
             self.resub_calc()
         self.status['g_in_curr'] = com_name
-        self.status['cleaned_up'] = False
-        self.status['between_levels'] = False
+        self.cleaned_up = False
+        self.between_levels = False
         self.status['calc_cutoff'] = None
         killed = self._run_gaussian(com_name)
         self.status['calc_cutoff'] = killed
@@ -361,9 +425,8 @@ class Calc(object):
 
     def _advance_level(self):
         self.log.debug(f'Advancing from {self.current_lvl}')
-        self.status['between_levels'] = True
+        self.between_levels = True
         self.current_lvl += 1
-        self.status['current_lvl'] = self.current_lvl
 
     def _make_g_in(self, xyz_path):
         self.log.debug(f'Making new Gaussian input from {xyz_path}')
@@ -487,7 +550,7 @@ class Calc(object):
         else:
             self.log.debug(f'chk file not found at {scr_chk_path} so not '
                            f'copied back')
-        self.status['cleaned_up'] = True
+        self.cleaned_up = True
 
     def _check_normal_completion(self, filepath):
         self.log.debug('Attempting to check for completion status of Gaussian')
@@ -566,45 +629,14 @@ class Calc(object):
 
     def resume_calc(self):
         self.log.debug('Attempting to resume calculation')
-        try:
-            cleaned = self.status['cleaned_up']
-        except KeyError:
-            self.log.warning('Could not find "cleaned_up" in status. Assuming '
-                             'dirty')
-            cleaned = False
-        if not cleaned:
+        if not self.cleaned_up:
             self._copy_and_cleanup()
-        try:
-            between_levels = self.status['between_levels']
-        except KeyError:
-            self.log.warning('No key in status for determining if between '
-                             'levels currently')
-            between_levels = self._check_between_levels()
-            self.status['between_levels'] = between_levels
-        if between_levels:
+        if self.between_levels:
             self._next_calc()
         else:
             com_name = self._update_g_in_for_restart()
             self._copy_in_restart()
             self._setup_and_run(com_name)
-
-    def _check_between_levels(self):
-        # Might need to look for rwf file otherwise should start the
-        # calculation again
-        self.log.debug('Checking to see if calculation left off between '
-                       'calculation levels')
-        lvl = self.current_lvl
-        try:
-            if self.status[f'g_in_{lvl}'] == self.status['g_in_curr']:
-                out_path = pathlib.Path(
-                    self.status['g_in_curr']).with_suffix('.out')
-                if out_path.exists():
-                    self._advance_level()
-                    return True
-                return False
-        except KeyError:
-            pass
-        return True
 
     def _copy_in_restart(self):
         self.log.debug('Copying rwf and chk files to scratch for restart')
