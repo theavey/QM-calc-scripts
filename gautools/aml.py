@@ -155,6 +155,7 @@ class Calc(object):
                                         '%(levelname)s - %(message)s')
         f_handler.setFormatter(f_formatter)
         self.log.addHandler(f_handler)
+        self.log.addHandler(handler)
         self.log.debug('Initializing the log')
         self.mem, self.node = None, None
         self.scratch_path: pathlib.Path = None
