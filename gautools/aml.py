@@ -827,11 +827,13 @@ class StatusDict(dict):
         else:
             super(StatusDict, self).__init__()
         self.log = logging.getLogger(self.__class__.__name__)
+        self.temp_path = self.path.with_suffix('.json.new')
 
     def __setitem__(self, key, value):
         try:
             super(StatusDict, self).__setitem__(key, value)
-            json.dump(self, open(self.path, 'w'), indent=4)
+            json.dump(self, open(self.temp_path, 'w'), indent=4)
+            os.rename(str(self.temp_path), str(self.path))
         except Exception:
             self.log.exception('Exception raised when trying to write status '
                                'file!')
