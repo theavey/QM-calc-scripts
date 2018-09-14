@@ -511,7 +511,8 @@ class Calc(object):
     def _copy_and_cleanup(self):
         self.log.debug('Attempting to copy back files and unlink chk file')
         com_name: str = self.status['g_in_curr']
-        killed: bool = self.status['calc_cutoff']
+        cc = self.status['calc_cutoff']
+        killed: bool = True if cc is None else cc
         if killed:
             scratch_path = pathlib.Path(self.status['last_scratch_dir'])
         else:
