@@ -189,7 +189,7 @@ class Calc(object):
 
     @current_lvl.setter
     def current_lvl(self, value):
-        if (not isinstance(value, int)) or (value is not None):
+        if not (isinstance(value, int) or value is None):
             raise TypeError('current_level must be an int or None.'
                             f'Given type {type(value)}')
         self.status['current_lvl'] = value
