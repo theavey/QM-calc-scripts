@@ -97,7 +97,7 @@ class Calc(object):
         * JOB_ID
         * NSLOTS
         * SGE_STDOUT_PATH
-    An excepption will be raised if any of these are not defined when doing
+    An exception will be raised if any of these are not defined when doing
     :func:`Calc.run_calc()`.
     """
 
@@ -496,14 +496,13 @@ class Calc(object):
                 signal.pause()
             except self.TimesUp:
                 killed = True
-                signal.signal(signal.SIGUSR1, old_sigusr1)
-                signal.signal(signal.SIGUSR2, old_sigusr2)
                 proc.terminate()  # Should be within `with` clause?
                 self.log.info('Gaussian process terminated because of SIGUSR2')
             except self.GaussianDone:
+                self.log.info('Gaussian process completed')
+            finally:
                 signal.signal(signal.SIGUSR1, old_sigusr1)
                 signal.signal(signal.SIGUSR2, old_sigusr2)
-                self.log.info('Gaussian process completed')
         return killed
 
     def _signal_catch_time(self, signum, frame):
