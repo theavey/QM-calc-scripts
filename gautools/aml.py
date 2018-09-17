@@ -71,6 +71,10 @@ obabel_module_lines = ('\n'
                        'module load wxwidgets/3.0.2\n'
                        'module load openbabel/2.4.1\n')
 
+signal_catch_lines = ('PY_PID=$!\n'
+                      "trap 'kill -n 12 $PY_PID' usr2\n"
+                      "wait\n\n")
+
 
 def log_exception(f):
     @functools.wraps(f)
@@ -618,7 +622,8 @@ class Calc(object):
             for key in arg_d:
                 sub_sh.write(f'#$ -{key} {arg_d[key]}\n')
             sub_sh.write(obabel_module_lines)
-            sub_sh.write(f'\n{curr_file} --restart {self._json_name}\n\n')
+            sub_sh.write(f'\n{curr_file} --restart {self._json_name} &\n\n')
+            sub_sh.write(signal_catch_lines)
         self.log.info(f'Wrote resubmission script to {sub_sh_path}')
         self.resub_cl = ['qsub', str(sub_sh_path)]
 
