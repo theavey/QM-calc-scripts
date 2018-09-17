@@ -85,6 +85,17 @@ def log_exception(f):
 
 
 class Calc(object):
+    """
+    An object for consecutive Gaussian calculation using a queuing system
+
+    Environment variables that need to be defined:
+        * HOSTNAME
+        * JOB_ID
+        * NSLOTS
+        * SGE_STDOUT_PATH
+    An excepption will be raised if any of these are not defined when doing
+    :func:`Calc.run_calc()`.
+    """
 
     def __init__(self, status=None, base_name=None, ind=None, top=None,
                  traj=None, criteria=None, react_dist=None, ugt_dicts=None):
