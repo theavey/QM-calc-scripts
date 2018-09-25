@@ -393,7 +393,7 @@ class Calc(object):
             xyz = XYZ(xyz_name)
             diff = xyz.coords[19] - xyz.coords[38]
             direction = diff / np.linalg.norm(diff)
-            xyz.coords[20] = xyz.coords[39] + self.react_dist * direction
+            xyz.coords[19] = xyz.coords[38] + self.react_dist * direction
             xyz.write(xyz_name)
             self.log.info('Moved reactant atoms 20 and 39 to a distance of {} '
                           'and wrote this to {}'.format(self.react_dist,
