@@ -72,8 +72,8 @@ obabel_module_lines = ('\n'
                        'module load openbabel/2.4.1\n')
 
 signal_catch_lines = ('PY_PID=$!\n'
-                      "trap 'kill -n 12 $PY_PID' usr2\n"
-                      "wait\n\n")
+                      'trap "kill -n 12 $PY_PID" usr2\n'
+                      'wait\n\n')
 
 
 def log_exception(f):
