@@ -430,6 +430,7 @@ class Calc(object):
         self.cleaned_up = False
         self.between_levels = False
         self.status['calc_cutoff'] = None
+        self.status['gaussian_failed'] = None
         killed = self._run_gaussian(com_name)
         self.status['calc_cutoff'] = killed
         if killed:
@@ -540,6 +541,8 @@ class Calc(object):
             scratch_path = self.scratch_path
         if not killed:
             out_path = pathlib.Path(com_name.replace('com', 'out'))
+            if self.status['gaussian_failed'] is True:
+                out_path = out_path.with_name(f'{out_path.stem}-failed.out')
         else:
             outs = [str(p) for p in self.cwd_path.glob(com_name[:-4]+'-*.out')]
             if not outs:
@@ -586,8 +589,10 @@ class Calc(object):
             self.log.error(f'Abnormal termination of Gaussian job in output: '
                            f'{filepath}')
             self._qdel_next_job()
+            self.status['gaussian_failed'] = True
             raise self.GaussianError('Gaussian did not finish normally. '
                                      f'See output: {filepath}')
+        self.status['gaussian_failed'] = False
         self.log.info(f'Normal termination of Gaussian job! Output at '
                       f'{filepath}')
 
@@ -843,6 +848,9 @@ class StatusDict(dict):
 
     * between_levels: bool of if between levels (not in the middle of a
         calculation). Useful for figuring out where to restart.
+
+    * gaussian_failed: bool of if Gaussian terminated abnormally. Will be None
+        while Gaussian is running and before it gets checked.
 
     """
     def __init__(self, path):
