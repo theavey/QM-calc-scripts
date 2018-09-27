@@ -135,7 +135,14 @@ class Calc(object):
             self.rerun = True
             self._status = StatusDict(status)
             self._json_name = status
-            self.args = self.status['args']
+            try:
+                self.args = self.status['args']
+            except KeyError:
+                self.log.error('Attempting to do a calculation restart, '
+                               f'but it seems that the status file {status} '
+                               'was empty or at least did not have "args" in '
+                               'it.')
+                raise
             a = self.args
             base_name = a['base_name']
             ind = a['ind']
