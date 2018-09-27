@@ -554,6 +554,9 @@ class Calc(object):
                 self.log.debug("Don't need to copy back output as it's already "
                                f"at {out_path}")
             else:
+                self.log.error('Output files differ; unable to copy back.\n'
+                               f'New: {self.output_scratch_path}\n'
+                               f'Existing: {out_path}')
                 raise
         if self.chk_ln_path.exists():
             self.chk_ln_path.unlink()
