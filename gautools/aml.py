@@ -541,8 +541,12 @@ class Calc(object):
             scratch_path = self.scratch_path
         if not killed:
             out_path = pathlib.Path(com_name.replace('com', 'out'))
-            if self.status['gaussian_failed'] is True:
-                out_path = out_path.with_name(f'{out_path.stem}-failed.out')
+            try:
+                if self.status['gaussian_failed'] is True:
+                    out_path = out_path.with_name(f'{out_path.stem}-failed.out')
+            except KeyError:
+                self.log.info('No key "gaussian_failed". Assuming it did '
+                              'not...')
         else:
             outs = [str(p) for p in self.cwd_path.glob(com_name[:-4]+'-*.out')]
             if not outs:
