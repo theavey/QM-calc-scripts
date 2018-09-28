@@ -494,6 +494,7 @@ class Calc(object):
         with com_path.open('r') as f_in, out_path.open('w') as f_out:
             self.log.info('Starting Gaussian with input {} and writing '
                           'output to {}'.format(com_path, out_path))
+            self.status['running'] = True
             proc = subprocess.Popen(cl, stdin=f_in, stdout=f_out,
                                     cwd=str(self.scratch_path))
             self.log.info('Started Gaussian; waiting for it to finish or '
@@ -511,6 +512,7 @@ class Calc(object):
             finally:
                 signal.signal(signal.SIGUSR1, old_sigusr1)
                 signal.signal(signal.SIGUSR2, old_sigusr2)
+        self.status['running'] = False
         return killed
 
     def _signal_catch_time(self, signum, frame):
