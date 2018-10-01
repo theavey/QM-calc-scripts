@@ -426,6 +426,7 @@ class Calc(object):
         self.log.info(f'Linked checkpoint file as {chk_ln_path}')
         if not self.resubmitted:
             self.resub_calc()
+        self.status['manual_input'] = None
         self.status['g_in_curr'] = com_name
         self.cleaned_up = False
         self.between_levels = False
@@ -669,7 +670,13 @@ class Calc(object):
         self.log.debug('Attempting to resume calculation')
         if not self.cleaned_up:
             self._copy_and_cleanup()
-        if self.between_levels:
+        try:
+            manual_input = self.status['manual_input']
+        except KeyError:
+            manual_input = None
+        if manual_input is not None:
+            self._setup_and_run(manual_input)
+        elif self.between_levels:
             self._next_calc()
         else:
             com_name = self._update_g_in_for_restart()
