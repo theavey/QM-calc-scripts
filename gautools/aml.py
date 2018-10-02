@@ -427,6 +427,7 @@ class Calc(object):
         if not self.resubmitted:
             self.resub_calc()
         self.status['manual_input'] = None
+        self.status['manual_restart'] = None
         self.status['g_in_curr'] = com_name
         self.cleaned_up = False
         self.between_levels = False
@@ -674,12 +675,19 @@ class Calc(object):
             manual_input = self.status['manual_input']
         except KeyError:
             manual_input = None
+        try:
+            manual_restart = self.status['manual_restart']
+        except KeyError:
+            manual_restart = None
         if manual_input is not None:
             self._setup_and_run(manual_input)
         elif self.between_levels:
             self._next_calc()
         else:
-            com_name = self._update_g_in_for_restart()
+            if manual_restart is not None:
+                com_name = manual_restart
+            else:
+                com_name = self._update_g_in_for_restart()
             self._copy_in_restart()
             self._setup_and_run(com_name)
 
