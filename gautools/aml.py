@@ -101,8 +101,9 @@ class Calc(object):
     :func:`Calc.run_calc()`.
     """
 
-    def __init__(self, status=None, base_name=None, ind=None, top=None,
-                 traj=None, criteria=None, react_dist=None, ugt_dicts=None):
+    def __init__(self, status=None, base_name=None, ind=None,
+                 geometry=None, top=None, traj=None,
+                 criteria=None, react_dist=None, ugt_dicts=None):
         """
 
         :param str status: The path to the status file to be read for a
@@ -110,6 +111,11 @@ class Calc(object):
             be None (the default).
         :param str base_name:
         :param int ind:
+        :type geometry: pathlib.Path or str
+        :param geometry: File from which to get the starting coordinates. This
+            argument will take priority if top and traj are also given.
+            Currently, this must be an XYZ file, but it shouldn't be too hard
+            to implement using openbabel to convert to an XYZ.
         :type top: pathlib.Path or str
         :param top:
         :type traj: pathlib.Path or str
@@ -146,6 +152,10 @@ class Calc(object):
             a = self.args
             base_name = a['base_name']
             ind = a['ind']
+            try:
+                geometry = a['geometry']
+            except KeyError:
+                geometry = None
             top = a['top']
             traj = a['traj']
             criteria = a['criteria']
@@ -156,7 +166,8 @@ class Calc(object):
             self.rerun = False
             self.args = {
                 'base_name': base_name,
-                'ind': ind, 'top': top, 'traj': traj,
+                'ind': ind, 'geometry': geometry,
+                'top': top, 'traj': traj,
                 'criteria': criteria,
                 'react_dist': react_dist,
                 'ugt_dicts': ugt_dicts}
@@ -164,6 +175,7 @@ class Calc(object):
             self._base_name = '{}-ind{}'.format(base_name, ind)
             self._json_name = '{}.json'.format(self._base_name)
             self._status = StatusDict(self._json_name)
+        self.geometry = geometry
         self.top = top
         self.traj = traj
         self.criteria = criteria
@@ -194,6 +206,14 @@ class Calc(object):
         self.resubmitted: bool = False
 
     def check_args(self):
+        args = self.args.copy()
+        geom = args.pop('geometry')
+        top, traj = args.pop('top'), args.pop('traj')
+        crit = args.pop('criteria')
+        if (geom is None and
+                (top is None or traj is None or crit is None)):
+            raise ValueError('either geometry or top, traj, and criteria must '
+                             'be given')
         for key in self.args:
             if self.args[key] is None:
                 raise ValueError(f'Argument "{key}" cannot be None')
@@ -391,28 +411,38 @@ class Calc(object):
                 # This should at least make the molecules whole if not
                 # necessarily in the correct unit cell together.
             w.write(system)
-        self.log.info('Wrote xyz file from frame {} to {}'.format(select,
-                                                                  xyz_name))
-        if self.react_dist:
-            paratemp.copy_no_overwrite(xyz_name, xyz_name+'.bak')
-            self.log.info('Copied original geometry to {}'.format(
-                xyz_name+'.bak'))
-            xyz = XYZ(xyz_name)
-            diff = xyz.coords[19] - xyz.coords[38]
-            direction = diff / np.linalg.norm(diff)
-            xyz.coords[19] = xyz.coords[38] + self.react_dist * direction
-            xyz.write(xyz_name)
-            self.log.info('Moved reactant atoms 20 and 39 to a distance of {} '
-                          'and wrote this to {}'.format(self.react_dist,
-                                                        xyz_name))
-            self.status['original_xyz'] = xyz_name + '.bak'
-        self.status['starting_xyz'] = xyz_name
+        self.log.info(f'Wrote xyz file from frame {select} to {xyz_name}')
         return pathlib.Path(xyz_name).resolve()
+
+    def _move_reactant_atoms(self, xyz_path):
+        self.log.debug('Moving reactant atoms (20 and 39) to '
+                       f'{self.react_dist}')
+        xyz_name = str(xyz_path)
+        bak_name = xyz_name + '.bak'
+        paratemp.copy_no_overwrite(xyz_name, bak_name)
+        self.status['original_xyz'] = bak_name
+        self.log.info(f'Copied original geometry to {bak_name}')
+        xyz = XYZ(xyz_name)
+        diff = xyz.coords[19] - xyz.coords[38]
+        direction = diff / np.linalg.norm(diff)
+        xyz.coords[19] = xyz.coords[38] + self.react_dist * direction
+        xyz.write(xyz_name)
+        self.log.info(f'Wrote updated xyz file to {xyz_name}')
 
     def new_calc(self):
         self.log.debug('Setting up a new calculation')
-        xyz_path = self._make_rand_xyz()
         self.current_lvl = 0
+        if self.geometry is None:
+            xyz_path = self._make_rand_xyz()
+        else:
+            self.log.debug(f'Using provided geometry from {self.geometry}')
+            xyz_path = pathlib.Path(self.geometry).resolve()
+        if self.react_dist:
+            self._move_reactant_atoms(xyz_path)
+        self.status['starting_xyz'] = xyz_path
+        if not xyz_path.exists():
+            raise FileNotFoundError('Could not find start geometry that was '
+                                    f'supposed to be at {xyz_path}')
         com_name = self._make_g_in(xyz_path)
         self._setup_and_run(com_name)
 
