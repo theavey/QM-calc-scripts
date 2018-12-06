@@ -933,9 +933,12 @@ if __name__ == '__main__':
                              'including any index')
     parser.add_argument('-i', '--index', type=int,
                         help='index of this calculation')
-    parser.add_argument('-c', '--top', type=str,
+    parser.add_argument('-x', '--xyz', type=str, default=None,
+                        help='manual input geometry (will take precedence '
+                             'over topology/trajectory frame selection)')
+    parser.add_argument('-c', '--top', type=str, default=None,
                         help='topology/structure file (e.g., .gro, .xyz)')
-    parser.add_argument('-f', '--trajectory', type=str,
+    parser.add_argument('-f', '--trajectory', type=str, default=None,
                         help='trajectory file (e.g., .xtc, .trr, .dcd)')
 
     def parse_crit(kvv):
@@ -966,6 +969,7 @@ if __name__ == '__main__':
         ugt_dicts = json.load(open(p_args.ugt_dicts, 'r'))
         calc = Calc(base_name=p_args.base_name,
                     ind=p_args.index,
+                    geometry=p_args.xyz,
                     top=p_args.top,
                     traj=p_args.trajectory,
                     criteria=dict(p_args.criteria),
