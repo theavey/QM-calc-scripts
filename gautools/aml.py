@@ -439,7 +439,7 @@ class Calc(object):
             xyz_path = pathlib.Path(self.geometry).resolve()
         if self.react_dist:
             self._move_reactant_atoms(xyz_path)
-        self.status['starting_xyz'] = xyz_path
+        self.status['starting_xyz'] = str(xyz_path)
         if not xyz_path.exists():
             raise FileNotFoundError('Could not find start geometry that was '
                                     f'supposed to be at {xyz_path}')
