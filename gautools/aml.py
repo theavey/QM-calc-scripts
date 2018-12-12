@@ -933,6 +933,7 @@ if __name__ == '__main__':
                              'including any index')
     parser.add_argument('-i', '--index', type=int,
                         help='index of this calculation')
+    # TODO use mutually exclusive arguments here
     parser.add_argument('-x', '--xyz', type=str, default=None,
                         help='manual input geometry (will take precedence '
                              'over topology/trajectory frame selection)')
@@ -967,12 +968,13 @@ if __name__ == '__main__':
         calc = Calc(status=p_args.restart)
     else:
         ugt_dicts = json.load(open(p_args.ugt_dicts, 'r'))
+        criteria = None if p_args.criteria is None else dict(p_args.criteria)
         calc = Calc(base_name=p_args.base_name,
                     ind=p_args.index,
                     geometry=p_args.xyz,
                     top=p_args.top,
                     traj=p_args.trajectory,
-                    criteria=dict(p_args.criteria),
+                    criteria=criteria,
                     react_dist=p_args.react_dist,
                     ugt_dicts=ugt_dicts
                     )
