@@ -255,7 +255,8 @@ class Calc(object):
                     if out_path.exists():
                         self._advance_level()
                         between = True
-                    between = False
+                    else:
+                        between = False
                 else:
                     between = True
             except KeyError:
@@ -577,21 +578,13 @@ class Calc(object):
             out_path = pathlib.Path(com_name.replace('com', 'out'))
             try:
                 if self.status['gaussian_failed'] is True:
-                    out_path = out_path.with_name(f'{out_path.stem}-failed.out')
+                    out_path = self._make_unique_output_path(
+                        f'{out_path.stem}-failed')
             except KeyError:
                 self.log.info('No key "gaussian_failed". Assuming it did '
                               'not...')
         else:
-            outs = [str(p) for p in self.cwd_path.glob(com_name[:-4]+'-*.out')]
-            if not outs:
-                new_out = com_name[:-4]+'-1.out'
-            else:
-                outs.sort()
-                outs.sort(key=len)
-                new_out = re.sub(r'(\d+)\.out',
-                                 lambda m: '{}.out'.format(int(m.group(1))+1),
-                                 outs[-1])
-            out_path = pathlib.Path(new_out).resolve()
+            out_path = self._make_unique_output_path(com_name[:-4])
         try:
             paratemp.copy_no_overwrite(str(self.output_scratch_path),
                                        str(out_path))
@@ -618,6 +611,18 @@ class Calc(object):
             self.log.debug(f'chk file not found at {scr_chk_path} so not '
                            f'copied back')
         self.cleaned_up = True
+
+    def _make_unique_output_path(self, com_base_name):
+        outs = [str(p) for p in self.cwd_path.glob(com_base_name + '-*.out')]
+        if not outs:
+            new_out = f'{com_base_name}-1.out'
+        else:
+            outs.sort()
+            outs.sort(key=len)
+            new_out = re.sub(r'(\d+)\.out',
+                             lambda m: '{}.out'.format(int(m.group(1)) + 1),
+                             outs[-1])
+        return pathlib.Path(new_out).resolve()
 
     def _check_normal_completion(self, filepath):
         self.log.debug('Attempting to check for completion status of Gaussian')
