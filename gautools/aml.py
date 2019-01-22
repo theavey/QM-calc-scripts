@@ -214,8 +214,8 @@ class Calc(object):
                 (top is None or traj is None or crit is None)):
             raise ValueError('either geometry or top, traj, and criteria must '
                              'be given')
-        for key in self.args:
-            if self.args[key] is None:
+        for key in args:
+            if args[key] is None:
                 raise ValueError(f'Argument "{key}" cannot be None')
 
     @property
