@@ -768,7 +768,12 @@ class Calc(object):
     def _next_calc(self):
         self.log.debug('Moving on to next level calculation')
         out_path = pathlib.Path(self.status['g_in_curr']).with_suffix('.out')
-        xyz_path_str = self._create_opt_xyz(out_path)
+        try:
+            xyz_path_str = self._create_opt_xyz(out_path)
+        except:
+            self.log.error(f'Failed to create xyz file for {out_path}')
+            self._qdel_next_job()
+            raise
         try:
             com_name = self._make_g_in(xyz_path_str)
         except self.NoMoreLevels:
@@ -801,21 +806,43 @@ class Calc(object):
     def _create_opt_xyz(self, out_path: pathlib.Path):
         self.log.debug('Converting output to xyz file for next level')
         xyz_path_str = str(out_path.with_suffix('.xyz'))
+        success = self._run_obabel(out_path, xyz_path_str)
+        if success:
+            return xyz_path_str
+        fchk_path = self._create_fchk()
+        success = self._run_obabel(fchk_path, xyz_path_str)
+        if success:
+            return xyz_path_str
+        raise self.NoOptXYZError
+
+    def _run_obabel(self, out_path: pathlib.Path, xyz_path_str: str):
+        self.log.debug('Running openbabel to convert geometry')
         cl = ['obabel', str(out_path), '-O',
               xyz_path_str]
         proc = subprocess.run(cl, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT,
                               universal_newlines=True)
-        if proc.returncode or \
-                '1 molecule converted' not in proc.stdout.lower():
-            mes = (f'obabel failed to convert {out_path} to an xyz file. '
-                   f'It said: {proc.stdout}')
-            self.log.error(mes)
-            raise subprocess.CalledProcessError(proc.returncode, cmd=cl,
-                                                output=mes)
-        self.log.info(f'Converted optimized structure to xyz file: '
-                      f'{xyz_path_str}')
-        return xyz_path_str
+        if not (proc.returncode or
+                '1 molecule converted' not in proc.stdout.lower()):
+            self.log.info(f'Converted optimized structure to xyz file: '
+                          f'{xyz_path_str}')
+            return True
+        mes = (f'obabel failed to convert {out_path} to an xyz file. '
+               f'It said: {proc.stdout}')
+        self.log.warning(mes)
+        return False
+
+    def _create_fchk(self):
+        self.log.debug('Converting chk to formatted checkpoint')
+        chk_name = f'{self._base_name}.chk'
+        fchk_name = f'{self._base_name}.fchk'
+        cl = ['formchk', chk_name, fchk_name]
+        proc = subprocess.run(cl, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT,
+                              universal_newlines=True)
+        self.log.debug(f'Ran Gaussian formchk and it said: {proc.stdout}')
+        proc.check_returncode()
+        return pathlib.Path(fchk_name).resolve()
 
     class SignalMessage(Exception):
         pass
@@ -830,6 +857,9 @@ class Calc(object):
         pass
 
     class GaussianError(Exception):
+        pass
+
+    class NoOptXYZError(Exception):
         pass
 
 
