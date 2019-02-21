@@ -612,9 +612,8 @@ class Calc(object):
         else:
             outs.sort()
             outs.sort(key=len)
-            new_out = re.sub(r'(\d+)\.out',
-                             lambda m: '{}.out'.format(int(m.group(1)) + 1),
-                             outs[-1])
+            ind = re.search(r'(\d+)\.out', outs[-1])
+            new_out = f'{com_base_name}-{int(ind.group(1))+1}.out'
         return pathlib.Path(new_out).resolve()
 
     def _check_normal_completion(self, filepath):
