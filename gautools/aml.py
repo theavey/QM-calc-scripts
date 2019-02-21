@@ -242,24 +242,20 @@ class Calc(object):
         # calculation again
         self.log.debug('Checking to see if calculation left off between '
                        'calculation levels')
-        try:
-            between = self.status['between_levels']
-        except KeyError:
+        between = self.status['between_levels']
+        if between is None:
             self.log.warning('No key in status for determining if between '
                              'levels currently')
             lvl = self.current_lvl
-            try:
-                if self.status[f'g_in_{lvl}'] == self.status['g_in_curr']:
-                    out_path = pathlib.Path(
-                        self.status['g_in_curr']).with_suffix('.out')
-                    if out_path.exists():
-                        self._advance_level()
-                        between = True
-                    else:
-                        between = False
-                else:
+            if self.status[f'g_in_{lvl}'] == self.status['g_in_curr']:
+                out_path = pathlib.Path(
+                    self.status['g_in_curr']).with_suffix('.out')
+                if out_path.exists():
+                    self._advance_level()
                     between = True
-            except KeyError:
+                else:
+                    between = False
+            else:
                 between = True
             self.status['between_levels'] = between
         return between
@@ -273,9 +269,8 @@ class Calc(object):
 
     @property
     def cleaned_up(self):
-        try:
-            cleaned = self.status['cleaned_up']
-        except KeyError:
+        cleaned = self.status['cleaned_up']
+        if cleaned is None:
             self.log.warning('Could not find "cleaned_up" in status. Assuming '
                              'dirty')
             cleaned = False
@@ -352,18 +347,20 @@ class Calc(object):
 
     def _get_output_scratch_path(self):
         self.log.debug('Getting path to scratch output')
-        try:
+        output_scratch_path_ = self.status['output_scratch_path']
+        if output_scratch_path_ is not None:
             self.output_scratch_path = pathlib.Path(
-                self.status['output_scratch_path'])
-        except KeyError:
+                output_scratch_path_)
+        else:
             self.output_scratch_path = self.last_scratch_path.joinpath(
                 self.status['g_in_curr']).with_suffix('.out')
 
     def _get_chk_ln_path(self):
         self.log.debug('Getting path to linked chk file')
-        try:
-            self.chk_ln_path = pathlib.Path(self.status['chk_ln_path'])
-        except KeyError:
+        chk_ln_path_ = self.status['chk_ln_path']
+        if chk_ln_path_ is not None:
+            self.chk_ln_path = pathlib.Path(chk_ln_path_)
+        else:
             self.chk_ln_path = pathlib.Path(
                 f'{self._base_name}-running.chk').resolve()
 
@@ -576,13 +573,9 @@ class Calc(object):
             scratch_path = self.scratch_path
         if not killed:
             out_path = pathlib.Path(com_name.replace('com', 'out'))
-            try:
-                if self.status['gaussian_failed'] is True:
-                    out_path = self._make_unique_output_path(
-                        f'{out_path.stem}-failed')
-            except KeyError:
-                self.log.info('No key "gaussian_failed". Assuming it did '
-                              'not...')
+            if self.status['gaussian_failed'] is True:
+                out_path = self._make_unique_output_path(
+                    f'{out_path.stem}-failed')
         else:
             out_path = self._make_unique_output_path(com_name[:-4])
         try:
@@ -706,14 +699,8 @@ class Calc(object):
         self.log.debug('Attempting to resume calculation')
         if not self.cleaned_up:
             self._copy_and_cleanup()
-        try:
-            manual_input = self.status['manual_input']
-        except KeyError:
-            manual_input = None
-        try:
-            manual_restart = self.status['manual_restart']
-        except KeyError:
-            manual_restart = None
+        manual_input = self.status['manual_input']
+        manual_restart = self.status['manual_restart']
         if manual_input is not None:
             com_name = self._update_g_in_memory_request(manual_input)
             self._setup_and_run(com_name)
@@ -951,6 +938,13 @@ class StatusDict(dict):
     * gaussian_failed: bool of if Gaussian terminated abnormally. Will be None
         while Gaussian is running and before it gets checked.
 
+    * manual_input: str of path to an input file to use to continue the
+        calculation. Will not use the chk and rwf files.
+
+    * manual_restart: str of path to an input file to use to restart the
+        calculation. This will copy in the chk and rwf files that should be
+        referenced in the header of the input.
+
     """
     def __init__(self, path):
         self.path = pathlib.Path(path).resolve()
@@ -971,6 +965,38 @@ class StatusDict(dict):
             self.log.exception('Exception raised when trying to write status '
                                'file!')
             raise
+
+    _defaults = dict(  # args=dict(),  # want this to be an Error
+                     current_node=None,
+                     last_node=None,
+                     node_list=list(),
+                     current_scratch_dir=None,
+                     base_name=None,
+                     cwd=None,
+                     last_scratch_dir=None,
+                     source_frame_num=None,
+                     original_xyz=None,
+                     starting_xyz=None,
+                     # current_lvl=None,  # want this to be an Error
+                     calc_cutoff=None, cleaned_up=None,
+                     chk_ln_path=None, output_scratch_path=None,
+                     job_id=None,
+                     between_levels=None, gaussian_failed=None,
+                     manual_input=None, manual_restart=None,
+                     g_in_curr=None,
+                     **{f'g_in_{i}': None for i in range(20)})
+
+    def __getitem__(self, item):
+        try:
+            return super(StatusDict, self).__getitem__(item)
+        except KeyError as ke:
+            self.log.warning(f'Tried to access non-existent key "{item}" from '
+                             'StatusDict')
+            try:
+                return self._defaults[item]
+            except KeyError:
+                raise ke
+
 
 
 if __name__ == '__main__':
