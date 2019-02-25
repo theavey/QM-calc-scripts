@@ -610,10 +610,12 @@ class Calc(object):
         if not outs:
             new_out = f'{com_base_name}-1.out'
         else:
-            outs.sort()
-            outs.sort(key=len)
-            ind = re.search(r'(\d+)\.out', outs[-1])
-            new_out = f'{com_base_name}-{int(ind.group(1))+1}.out'
+            def get_ind(s):
+                match = re.search(r'(\d+)\.out', s)
+                return int(match.group(1))
+            outs.sort(key=get_ind)
+            ind = get_ind(outs[-1])
+            new_out = f'{com_base_name}-{ind+1}.out'
         return pathlib.Path(new_out).resolve()
 
     def _check_normal_completion(self, filepath):
