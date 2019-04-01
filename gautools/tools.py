@@ -5,10 +5,10 @@ A set of tools for working with computational chemistry files and such
 
 ########################################################################
 #                                                                      #
-# This script was written by Thomas Heavey in 2015.                    #
+# This script was written by Thomas Heavey in 2019.                    #
 #        theavey@bu.edu     thomasjheavey@gmail.com                    #
 #                                                                      #
-# Copyright 2015 Thomas J. Heavey IV                                   #
+# Copyright 2015-2019 Thomas J. Heavey IV                              #
 #                                                                      #
 # Licensed under the Apache License, Version 2.0 (the "License");      #
 # you may not use this file except in compliance with the License.     #
@@ -26,6 +26,7 @@ A set of tools for working with computational chemistry files and such
 ########################################################################
 
 import re
+import pathlib
 from six import string_types
 from paratemp import copy_no_overwrite
 
@@ -93,6 +94,91 @@ def use_gen_template(out_file, xyz, job_name='default job name',
 
     :type out_file: str or TextIOBase
     :param out_file: name of file or open file object to write output to
+    :type xyz: str or list
+    :param xyz: List of lines from an xyz file or string of path to an xyz
+        file.
+    :param str job_name: Default: 'default job name'. Name of the job to put
+        into the Gaussian input.
+    :param str checkpoint: Default: 'checkpoint.cpt'. File name for the
+        checkpoint file.
+    :param str rwf: Default: 'readwrite.rwf'. File name for the read-write
+        file.
+    :type nproc: int or str
+    :param nproc: Default: 16. Number of processors to tell Gaussian to use.
+        Note, this now uses the newer '%cpu' syntax, and I'm not sure how
+        that will work using fewer than all CPUs on the node because it says
+        to use 0 to nproc-1.
+    :type mem: int or str
+    :param mem: Default: 125. Number of gigabytes of memory to tell Gaussian
+        to use.
+    :param str opt: Default: 'opt'. Opt keywords to tell Gaussian.
+        If True, this will be set to 'opt'.
+        If this evaluates to False, it will be set to the blank string.
+    :param str td: Default: False. TD keywords to tell Gaussian.
+        If True, this will be set to TD.
+        If this evaluates to False, it will be set to the blank string.
+    :param str func: Default: 'wb97xd'. Functional for Gaussian to use.
+    :param str basis: Default: '6-31g(d)'. Basis set for Gaussian to use.
+    :param str charg_mult: Default: '0 1'. Charge and multiplicity line.
+    :param str footer: Default: '\n\n'. Footer of input file. Useful for RESP
+        charge calculation jobs and such.
+    :param str template: Default: '~nbth/qm-basics/templ-gen.txt'.
+        The general template file to use. It should have keywords in curly
+        braces with the same names as the keyword arguments to this function.
+    :return: None
+    """
+    if opt:
+        if opt is True:
+            opt = 'opt'
+    else:
+        opt = ''
+    if td:
+        if td is True:
+            td = 'TD'
+    else:
+        td = ''
+    d_fill = dict(job_name=job_name,
+                  checkpoint=checkpoint, rwf=rwf,
+                  nproc=str(int(nproc)-1), mem=str(mem),
+                  opt=opt, td=td,
+                  func=func, basis=basis,
+                  charg_mult=charg_mult)
+    xyz_lines = _get_xyz_lines(xyz)
+    own_handle = False
+    if isinstance(out_file, string_types):
+        own_handle = True
+        out_file = open(out_file, 'x')
+    try:
+        with open(template, 'r') as f_templ:
+            line = ''  # To satisfy IDE in case of empty template
+            for line in f_templ:
+                line = line.format(**d_fill)
+                out_file.write(line)
+        if '\n' not in line:
+            out_file.write('\n')
+        for line in xyz_lines:
+            out_file.write(line)
+        out_file.write(footer)
+    finally:
+        if own_handle:
+            out_file.close()
+
+
+def make_gaussian_input(out_file, xyz, job_name='default job name',
+                        checkpoint='checkpoint.chk',
+                        rwf='readwrite.rwf',
+                        nproc=16, mem=125,
+                        route=None,
+                        opt='opt', td=False,
+                        func='wb97xd', basis='6-31g(d)',
+                        route_other=None,
+                        charg_mult='0 1',
+                        footer=None,):
+    """
+    Write Gaussian input file
+
+    :type out_file: str or TextIOBase
+    :param out_file: name of file or open file object to write output to
 
     :type xyz: str or list
     :param xyz: List of lines from an xyz file or string of path to an xyz
@@ -117,63 +203,133 @@ def use_gen_template(out_file, xyz, job_name='default job name',
     :param mem: Default: 125. Number of gigabytes of memory to tell Gaussian
         to use.
 
+    :param str route: If not None, this will be the entire route section and
+        the following commands will be ignored: `opt`, `td`, `func`, `basis`.
+
     :param str opt: Default: 'opt'. Opt keywords to tell Gaussian.
         If True, this will be set to 'opt'.
         If this evaluates to False, it will be set to the blank string.
+        If something else, it will be set to the given string.
 
     :param str td: Default: False. TD keywords to tell Gaussian.
         If True, this will be set to TD.
         If this evaluates to False, it will be set to the blank string.
+        If something else, it will be set to the given string.
 
     :param str func: Default: 'wb97xd'. Functional for Gaussian to use.
+        If True or evaluates as false, it will be set to a blank string,
+        which will likely be an error.
 
     :param str basis: Default: '6-31g(d)'. Basis set for Gaussian to use.
+        If True or evaluates as false, it will be set to a blank string,
+        which will likely be an error.
+
+    :param str route_other: Other commands to use in the route section
+        (e.g., 'SCRF=(solvent=dichloromethane) Int=Ultrafile freq')
 
     :param str charg_mult: Default: '0 1'. Charge and multiplicity line.
 
-    :param str footer: Default: '\n\n'. Footer of input file. Useful for RESP
+    :param str footer: Default: None. Footer of input file. Useful for RESP
         charge calculation jobs and such.
-
-    :param str template: Default: '~nbth/qm-basics/templ-gen.txt'.
-        The general template file to use. It should have keywords in curly
-        braces with the same names as the keyword arguments to this function.
-    :return: None
+    :return: The Path to the written file
+    :rtype: pathlib.Path
     """
-    if opt:
-        if opt is True:
-            opt = 'opt'
+    link0 = _make_link0(checkpoint, rwf, str(int(nproc)-1), mem)
+    route_sec = _make_route(route, opt, td, func, basis, route_other)
+    xyz_lines = _get_xyz_lines(xyz)
+    own_handle = False
+    if isinstance(out_file, string_types):
+        own_handle = True
+        out_file_path = pathlib.Path(out_file)
+        out_file = open(out_file, 'x')
     else:
-        opt = ''
-    if td:
-        if td is True:
-            td = 'TD'
+        out_file_path = pathlib.Path(out_file.name)
+    try:
+        out_file.write(link0)
+        out_file.write(route_sec)
+        out_file.write('\n')  # blank line between sections
+        out_file.write(_make_newline_terminated(job_name))
+        out_file.write('\n')  # blank line between sections
+        out_file.write(_make_newline_terminated(charg_mult))
+        line = ''  # in case empty xyz_lines
+        for line in xyz_lines:
+            out_file.write(line)
+        if line[-1] == '\n':  # hopefully only 1 newline at most
+            out_file.write('\n')  # blank line between sections
+        else:
+            out_file.write('\n\n')  # blank line between sections
+        if footer:
+            out_file.write(_make_newline_terminated(footer))
+        out_file.write('\n')  # blank line before end of file
+    finally:
+        if own_handle:
+            out_file.close()
+    return out_file_path.resolve()
+
+
+_link0_template_dict = {'nproc': '%cpu=0-{nproc}',
+                        'mem': '%mem={mem}GB',
+                        'rwf': '%rwf={rwf}\n%NoSave',
+                        'checkpoint': '%chk={checkpoint}'}
+
+
+def _make_link0(checkpoint, rwf, nproc, mem):
+    # http://gaussian.com/link0/
+    output = []
+    kwarg_dict = dict()
+    # want at least rwf and checkpoint to be ordered (for %NoSave),
+    # so this might not be perfect in Python < 3.6
+    kwarg_dict['mem'] = mem
+    kwarg_dict['nproc'] = nproc
+    kwarg_dict['rwf'] = rwf
+    kwarg_dict['checkpoint'] = checkpoint
+    for key in kwarg_dict:
+        if kwarg_dict[key]:
+            output.append(_link0_template_dict[key].format(**kwarg_dict))
+    if output:
+        return _make_newline_terminated('\n'.join(output))
     else:
-        td = ''
-    d_fill = dict(job_name=job_name,
-                  checkpoint=checkpoint, rwf=rwf,
-                  nproc=str(int(nproc)-1), mem=str(mem),
-                  opt=opt, td=td,
-                  func=func, basis=basis,
-                  charg_mult=charg_mult)
+        return str()
+
+
+_route_template = '# {opt} {td} {func}/{basis} {route_other}'
+
+
+def _make_route(route, opt, td, func, basis, route_other):
+    if route:
+        if not route[0] == '#':
+            route = '# ' + route
+        return _make_newline_terminated(route)
+    kwarg_dict = dict(opt=opt, td=td, func=func,
+                      basis=basis, route_other=route_other)
+    defaults_dict = dict(
+        opt='opt', td='TD',
+        func='', basis='',  # not sure what good defaults are here
+        route_other='')
+    for key in kwarg_dict:
+        kwarg_dict[key] = _process_keyword(kwarg_dict[key],
+                                           defaults_dict[key])
+    return _make_newline_terminated(_route_template.format(**kwarg_dict))
+
+
+def _process_keyword(key, key_default):
+    if key:
+        key = key_default if key is True else key
+    else:
+        key = ''
+    return key
+
+
+def _get_xyz_lines(xyz):
     if isinstance(xyz, string_types):
         xyz_lines = open(xyz, 'r').readlines()[2:]
     else:
         xyz_lines = xyz[2:]
-    own_handle = False
-    if isinstance(out_file, string_types):
-        own_handle = True
-        out_file = open(out_file, 'x')
-    try:
-        with open(template, 'r') as f_templ:
-            line = ''  # To satisfy IDE in case of empty template
-            for line in f_templ:
-                line = line.format(**d_fill)
-                out_file.write(line)
-        if '\n' not in line:
-            out_file.write('\n')
-        for line in xyz_lines:
-            out_file.write(line)
-        out_file.write(footer)
-    finally:
-        if own_handle:
-            out_file.close()
+    return xyz_lines
+
+
+def _make_newline_terminated(line):
+    if line[-1] == '\n':
+        return line
+    else:
+        return line + '\n'
