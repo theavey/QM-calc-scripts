@@ -62,12 +62,25 @@ def _dir_and_file(path):
 
 
 def create_gau_input(coord_name, template, verbose=True):
-    """This function takes as input a file with a set of molecular
+    """
+    make gaussian input file by combining header and coordinates files
+
+    This function takes as input a file with a set of molecular
     coordinates (the form should not matter, it will just be copied
     into the next file) and a template file that should be the header
     for the desired calculation (including charge and multiplicity),
     returns the name of the file, and creates a Gaussian input file ending
-    with '.com' """
+    with '.com'
+
+    :param str coord_name: name of file with coordinates in a format
+        Gaussian can read
+    :param str template: name of file with header for Gaussian calculation
+        (up to and including the charge and multiplicity)
+    :param bool verbose: If True, some status messages will be printed
+        (including file names)
+    :return: name of the written file
+    :rtype: str
+    """
     if verbose:
         print('Creating Gaussian input file...')
     _out_name = coord_name.rsplit('.', 1)[0] + '.com'
