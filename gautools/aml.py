@@ -103,7 +103,7 @@ class Calc(object):
 
     def __init__(self, status=None, base_name=None, ind=None,
                  geometry=None, top=None, traj=None,
-                 criteria=None, react_dist=None, ugt_dicts=None):
+                 criteria=None, react_dist=None, mgi_dicts=None):
         """
 
         :param str status: The path to the status file to be read for a
@@ -133,7 +133,7 @@ class Calc(object):
             with indices 20 and 39).
             If this argument as given evaluates to False, no movement/changes
             to the geometry will be made.
-        :param List[dict] ugt_dicts:
+        :param List[dict] mgi_dicts:
         :return:
         """
         if status is not None:
@@ -160,7 +160,10 @@ class Calc(object):
             traj = a['traj']
             criteria = a['criteria']
             react_dist = a['react_dist']
-            ugt_dicts = a['ugt_dicts']
+            try:
+                mgi_dicts = a['mgi_dicts']
+            except KeyError:
+                mgi_dicts = a['ugt_dicts']
             self._base_name = self.status['base_name']
         else:
             self.rerun = False
@@ -170,7 +173,7 @@ class Calc(object):
                 'top': top, 'traj': traj,
                 'criteria': criteria,
                 'react_dist': react_dist,
-                'ugt_dicts': ugt_dicts}
+                'mgi_dicts': mgi_dicts}
             self.check_args()
             self._base_name = '{}-ind{}'.format(base_name, ind)
             self._json_name = '{}.json'.format(self._base_name)
@@ -180,7 +183,7 @@ class Calc(object):
         self.traj = traj
         self.criteria = criteria
         self.react_dist = react_dist
-        self.ugt_dicts = ugt_dicts
+        self.mgi_dicts = mgi_dicts
         self.log = logging.getLogger(self.__class__.__name__)
         self.log.setLevel(logging.DEBUG)
         f_handler = logging.FileHandler('{}.log'.format(self._base_name))
@@ -488,19 +491,19 @@ class Calc(object):
         lvl = self.current_lvl
         com_name = f'{bn}-lvl{lvl}.com'
         try:
-            ugt_dict = self.ugt_dicts[lvl]
+            mgi_dict = self.mgi_dicts[lvl]
         except IndexError:
             self.log.warning('Seems that there are no more calculation '
                              'levels to complete')
             raise self.NoMoreLevels
-        tools.use_gen_template(
+        tools.make_gaussian_input(
             out_file=com_name,
             xyz=str(xyz_path),
             job_name=bn,
             checkpoint=f'{bn}.chk',
             rwf=f'{bn}.rwf',
             nproc=self.n_slots, mem=self.mem,
-            **ugt_dict
+            **mgi_dict
         )
         self.log.info('Wrote Gaussian input for '
                       f'level {lvl} job to {com_name}')
@@ -999,7 +1002,6 @@ class StatusDict(dict):
                 raise ke
 
 
-
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -1031,9 +1033,9 @@ if __name__ == '__main__':
                         help='Distance to set between atoms 20 and 39, '
                              'in angstroms. If this evaluates to False, '
                              'no changes to the geometry will be made')
-    parser.add_argument('-g', '--ugt_dicts', type=str,
+    parser.add_argument('-g', '--mgi_dicts', type=str,
                         help='path to json file that parses to a list of '
-                             'dicts of arguments for use_gen_template in '
+                             'dicts of arguments for make_gaussian_input in '
                              'order to create inputs to Gaussian')
     parser.add_argument('--restart', default=None,
                         help='Path to status file for resuming an already '
@@ -1042,15 +1044,15 @@ if __name__ == '__main__':
     if p_args.restart is not None:
         calc = Calc(status=p_args.restart)
     else:
-        ugt_dicts = json.load(open(p_args.ugt_dicts, 'r'))
-        criteria = None if p_args.criteria is None else dict(p_args.criteria)
+        _mgi_dicts = json.load(open(p_args.mgi_dicts, 'r'))
+        _criteria = None if p_args.criteria is None else dict(p_args.criteria)
         calc = Calc(base_name=p_args.base_name,
                     ind=p_args.index,
                     geometry=p_args.xyz,
                     top=p_args.top,
                     traj=p_args.trajectory,
-                    criteria=criteria,
+                    criteria=_criteria,
                     react_dist=p_args.react_dist,
-                    ugt_dicts=ugt_dicts
+                    mgi_dicts=_mgi_dicts
                     )
     calc.run_calc()
