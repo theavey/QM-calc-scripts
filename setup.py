@@ -26,6 +26,7 @@ setup(
         'numpy',
         'six',
         'paratemp',
+        'parmed',
     ],
     classifiers=[
             'Development Status :: 4 - Beta',
