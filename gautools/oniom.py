@@ -44,6 +44,8 @@ class OniomUniverse(object):
     First, it can be instatiated with an existing MDAnalysis Universe
     instance and an existing parmed Structure instance:
 
+    >>> univ = MDAnalysis.Universe('geom.pdb', 'traj.xtc')
+    >>> structure = parmed.load_file('topology.top')
     >>> ou = OniomUniverse(univ=univ, structure=structure)
 
     Alternatively, the Universe and/or Structure can be instantiated here:
@@ -69,6 +71,22 @@ class OniomUniverse(object):
     Note, if you do not need the parameter section (e.g., only using
     already included AMBER atom types), the structure or structure files
     need not be specified.
+
+    The interfaces between high and low are not treated specially, so link
+    atoms will need to be manually treated. That can be done after writing
+    to an input file, or using something like:
+
+    >>> interface_atom = univ.select_atoms('bynum 88')
+    >>> interface_atom_index = ou.atom_to_line_num[interface_atom] - 1
+
+    (because the dict gives a (Gaussian) 1-based index)
+
+    >>> interface_atom_line = mol_sec[interface_atom_index][:-2]+' H-H1-0.1\\n'
+
+    (remove newline, add link atom definition and newline)
+
+    >>> mol_sec[interface_atom_index] = interface_atom_line
+
     """
 
     def __init__(self, univ: MDAnalysis.Universe = None,
@@ -78,7 +96,8 @@ class OniomUniverse(object):
                  overlap_okay: bool = False,
                  univ_args=None, univ_kwargs=None,
                  structure_file=None,
-                 structure_args=None, structure_kwargs=None):
+                 structure_args=None, structure_kwargs=None,
+                 freeze_dict: dict = None):
         """
         Instantiate OniomUniverse to create Gaussian ONIOM input sections
 
@@ -87,8 +106,9 @@ class OniomUniverse(object):
             information or MDAnalysis will have to be told to guess them:
             https://www.mdanalysis.org/docs/documentation_pages/topology/guessers.html#MDAnalysis.topology.guessers.guess_bonds
         :param structure: Structure with atom types, bonds, angles,
-            etc. Note, this is only currently written to work with AMBER,
-            and it is unclear how it will work for other force fields.
+            etc. Note, this is only currently written to work with AMBER (or
+            really GAFF as made by Antechamber/AcPype), and it is unclear
+            how it will work for other force fields or implementations.
         :param high_select: Selection string for the atoms to be included in the
             "high" calculation
         :param low_select: Selection string for the atoms to be included in the
@@ -105,6 +125,9 @@ class OniomUniverse(object):
             Structure
         :param structure_kwargs: keyword arguments to be provided to instantiate
             the Structure
+        :param freeze_dict: mapping from levels ('H' and 'L') to freeze
+            commands (0 for unfrozen, -1 for frozen).
+            Default is `{'H': 0, 'L': -1}`
         """
         if univ is None:
             self.universe = MDAnalysis.Universe(*univ_args, **univ_kwargs)
@@ -124,11 +147,13 @@ class OniomUniverse(object):
         self.overlap_okay = overlap_okay
         self.atom_to_line_num = dict()
         self.n_atoms_in_input = 0
+        if freeze_dict is None:
+            self.freeze_dict = {'H': 0, 'L': -1}
 
     @property
     def molecule_section(self,) -> List[str]:
         """
-        Create molecule specification lines for ONIOM calculation
+        Molecule specification lines for ONIOM calculation
 
         This defines a dict mapping `Atom`s to atom number (line number in
         input) as `self.atom_to_line_number`, and number of atoms included in
@@ -141,7 +166,8 @@ class OniomUniverse(object):
                                       'must be specified')
         high_atoms = self.universe.select_atoms(self.high_select)
         low_atoms = self.universe.select_atoms(self.low_select)
-        if high_atoms.intersection(low_atoms) and not self.overlap_okay:
+        n_atoms_in_both = high_atoms.intersection(low_atoms).n_atoms
+        if n_atoms_in_both and not self.overlap_okay:
             raise ValueError('The selections are not mutually exclusive')
         lines = []
         line_num = 0
@@ -153,10 +179,9 @@ class OniomUniverse(object):
             else:
                 continue
             line_num += 1
-            lines.append(self._make_atom_line(atom=atom, level=level,
-                                              freeze_dict={'H': 0, 'L': -1}))
+            lines.append(self._make_atom_line(atom=atom, level=level,))
             self.atom_to_line_num[atom] = line_num
-        sel_n_atoms = (high_atoms.n_atoms + low_atoms.n_atoms)
+        sel_n_atoms = (high_atoms.n_atoms + low_atoms.n_atoms - n_atoms_in_both)
         if line_num != sel_n_atoms:
             raise ValueError('Number of lines and n_atoms in selections differ '
                              f'({line_num} and {sel_n_atoms})')
@@ -166,7 +191,7 @@ class OniomUniverse(object):
     @property
     def bonds_section(self, ) -> List[str]:
         """
-        Create bond specifications for a Gaussian job with `geom=connectivity`
+        Bond specifications for a Gaussian job with `geom=connectivity`
 
         :return: The lines to be written in the input after the molecule
             specification
@@ -186,6 +211,7 @@ class OniomUniverse(object):
                 continue
         lines = []
         for i in range(self.n_atoms_in_input):
+            i += 1  # use 1-based indexing
             bonds = ' '.join(bond_dict[i])
             lines.append(f'{i} {bonds}\n')
         return lines
@@ -193,7 +219,7 @@ class OniomUniverse(object):
     @property
     def params_section(self, ) -> List[str]:
         """
-        Create parameter specification for Gaussian job using Amber MM
+        Parameter specification for Gaussian job using Amber MM
 
         :return: The lines to be included for Gaussian jobs using Amber MM and
             HardFirst, SoftFirst, or SoftOnly
@@ -248,17 +274,14 @@ class OniomUniverse(object):
             raise ValueError(f'Could not find element for atom {atom}')
 
     def _make_atom_line(self, atom: MDAnalysis.core.groups.Atom,
-                        level: str,
-                        freeze_dict: dict = None) -> str:
-        if freeze_dict is None:
-            freeze_dict = {'H': 0, 'L': -1}
+                        level: str,) -> str:
         elem = self._get_elem(atom)
         line = (f'{elem}-'
                 f'{atom.type}-'
-                f'{atom.charge:3f} {freeze_dict[level]} '
+                f'{atom.charge:3f} {self.freeze_dict[level]} '
                 f'{atom.position[0]:4f} '
                 f'{atom.position[1]:4f} '
-                f'{atom.position[2]:4f} {level} \n')
+                f'{atom.position[2]:4f} {level}\n')
         return line
 
     def _get_atom_types(self,) -> set:
@@ -306,7 +329,7 @@ class OniomUniverse(object):
         k = angle.type.uk.value_in_unit(parmed.unit.kilocalorie_per_mole /
                                         parmed.unit.radian ** 2)
         thetaeq = angle.type.utheteq.value_in_unit(parmed.unit.degree)
-        return f'HrmBnd1 {a1:2} {a2:2} {a3:2}  {k: >5.1f}  {thetaeq:6.2f}'
+        return f'HrmBnd1 {a1:2} {a2:2} {a3:2}  {k: >5.1f}  {thetaeq:6.2f}\n'
 
     def _get_improper_types(self,) -> List:
         # Somewhere along antechamber -> acpype, the impropers are stored
