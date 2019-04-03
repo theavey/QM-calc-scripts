@@ -147,8 +147,8 @@ class OniomUniverse(object):
         self.overlap_okay = overlap_okay
         self.atom_to_line_num = dict()
         self.n_atoms_in_input = 0
-        if freeze_dict is None:
-            self.freeze_dict = {'H': 0, 'L': -1}
+        self.freeze_dict = ({'H': 0, 'L': -1} if freeze_dict is None
+                            else freeze_dict)
 
     @property
     def molecule_section(self,) -> List[str]:
