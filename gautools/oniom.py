@@ -99,7 +99,7 @@ class OniomUniverse(object):
                  structure_args=None, structure_kwargs=None,
                  freeze_dict: dict = None):
         """
-        Instantiate OniomUniverse to create Gaussian ONIOM input sections
+        Initialize OniomUniverse to create Gaussian ONIOM input sections
 
         :param univ: Universe with the geometry and bonding information for the
             system of interest. Note, the geometry must include bonding
@@ -261,7 +261,25 @@ class OniomStructure(object):
                  structure: parmed.structure.Structure = None,
                  structure_file: str = None,
                  structure_args: Union[Tuple, List] = None,
-                 structure_kwargs: dict = None,):
+                 structure_kwargs: dict = None,
+                 unique_types: bool = False):
+        """
+        Initialize OniomStructure to create Gaussian Amber MM input section
+
+        :param structure_file: filename (first argument) to be provided to
+            instantiate the Structure
+        :param structure_args: arguments to be provided to instantiate the
+            Structure
+        :param structure_kwargs: keyword arguments to be provided to instantiate
+            the Structure
+        :param unique_types: If False (default), all bonds, angles, dihedrals,
+            and impropers will be included.
+            If True, only the unique elements for each of those will be
+            included, which may not define the terms for all possible
+            interactions because one type may be used for several atom types.
+            For example, there might be an angle_type that should be used for
+            "*-C3-C3", but it might only get defined for "H1-C3-C3".
+        """
         if structure is None:
             if (structure_file is None and
                     structure_args is None and
@@ -273,6 +291,20 @@ class OniomStructure(object):
                                                   **structure_kwargs)
         else:
             self.structure = structure
+        self.unique_types = unique_types
+        self._unique_types = {
+            'bonds': self._get_bond_types_uniq(),
+            'angles': self._get_angle_types_uniq(),
+            'dihedrals': self._get_dihedral_types_uniq(),
+            'impropers': self._get_improper_types_uniq()
+        }
+        self._non_unique_types = {
+            'bonds': self._get_bond_types_nu(),
+            'angles': self._get_angle_types_nu(),
+            'dihedrals': self._get_dihedral_types_nu(),
+            'impropers': self._get_improper_types_nu()}
+        self._types_dict = {True: self._unique_types,
+                            False: self._non_unique_types}
 
     @property
     def params_section(self, ) -> List[str]:
@@ -290,24 +322,25 @@ class OniomStructure(object):
         # wildcards), or just iterate over all bonds/angles/dihedrals
         # instead of iterating over *_types.
         lines = list()
-        lines.append('! Van der Waals parameters\n')
+        types = self._types_dict[self.unique_types]
+        lines.append('! Van der Waals parameters\n!\n')
         atom_types = self._get_atom_types()
         for at in atom_types:
             lines.append(self._make_atomtype_line(at))
-        lines.append('! Stretch parameters\n')
-        bond_types = self._get_bond_types()
+        lines.append('! Stretch parameters\n!\n')
+        bond_types = types['bonds']
         for bond in bond_types:
             lines.append(self._make_bondtype_line(bond))
-        lines.append('! Bend parameters\n')
-        angle_types = self._get_angle_types()
+        lines.append('! Bend parameters\n!\n')
+        angle_types = types['angles']
         for angle in angle_types:
             lines.append(self._make_angletype_line(angle))
-        lines.append('! Dihedral parameters\n')
-        dihedral_types = self._get_dihedral_types()
+        lines.append('! Dihedral parameters\n!\n')
+        dihedral_types = types['dihedrals']
         for dihed in dihedral_types:
             lines.append(self._make_dihedraltype_line(dihed))
-        lines.append('! Improper dihedral parameters\n')
-        improper_types = self._get_improper_types()
+        lines.append('! Improper dihedral parameters\n!\n')
+        improper_types = types['impropers']
         for dihed in improper_types:
             lines.append(self._make_impropertype_line(dihed))
         return lines
@@ -336,8 +369,11 @@ class OniomStructure(object):
                     break
         return instance_types
 
-    def _get_bond_types(self,) -> List:
+    def _get_bond_types_uniq(self, ) -> List:
         return self._get_types(self.structure.bonds, self.structure.bond_types)
+
+    def _get_bond_types_nu(self) -> List:
+        return self.structure.bonds
 
     @staticmethod
     def _make_bondtype_line(bond: parmed.topologyobjects.Bond) -> str:
@@ -347,9 +383,12 @@ class OniomStructure(object):
         req = bond.type.ureq.value_in_unit(parmed.unit.angstrom)
         return f'HrmStr1 {a1:2} {a2:2}  {k: <5.1f}  {req: <5.3f}\n'
 
-    def _get_angle_types(self,) -> List:
+    def _get_angle_types_uniq(self, ) -> List:
         return self._get_types(self.structure.angles,
                                self.structure.angle_types)
+
+    def _get_angle_types_nu(self) -> List:
+        return self.structure.angles
 
     @staticmethod
     def _make_angletype_line(angle: parmed.topologyobjects.Angle) -> str:
@@ -359,11 +398,14 @@ class OniomStructure(object):
         thetaeq = angle.type.utheteq.value_in_unit(parmed.unit.degree)
         return f'HrmBnd1 {a1:2} {a2:2} {a3:2}  {k: >5.1f}  {thetaeq:6.2f}\n'
 
-    def _get_improper_types(self,) -> List:
+    def _get_improper_types_uniq(self, ) -> List:
         # Somewhere along antechamber -> acpype, the impropers are stored
         # as dihedrals (of GROMACS function 1)
         return self._get_types(self.structure.dihedrals,
                                self.structure.dihedral_types)
+
+    def _get_improper_types_nu(self) -> List:
+        return self.structure.impropers
 
     @staticmethod
     def _make_impropertype_line(dihed: parmed.topologyobjects.Dihedral
@@ -377,13 +419,16 @@ class OniomStructure(object):
         return (f'ImpTrs {a1:2} {a2:2} {a3:2} {a4:2}  '
                 f'{phi_k: >5.1f}  {phase:5.1f} {per:3.1f}')
 
-    def _get_dihedral_types(self,) -> List:
+    def _get_dihedral_types_uniq(self, ) -> List:
         # Somewhere along antechamber -> acpype, the impropers are stored
         # as dihedrals (of GROMACS function 1)
         # and the dihedrals get stored as Ryckaert-Bellemans
         # dihedrals (function 3)
         return self._get_types(self.structure.rb_torsions,
                                self.structure.rb_torsion_types)
+
+    def _get_dihedral_types_nu(self) -> List:
+        return self.structure.dihedrals
 
     @staticmethod
     def _make_dihedraltype_line(dihed: parmed.topologyobjects.Dihedral
