@@ -139,7 +139,6 @@ class OniomUniverse(object):
                 structure_file=structure_file,
                 structure_args=structure_args,
                 structure_kwargs=structure_kwargs)
-            self.params_section = self.oniom_structure.params_section
         except NoStructureException:
             self.oniom_structure = None
         self.high_select = high_select
@@ -216,6 +215,16 @@ class OniomUniverse(object):
             bonds = ' '.join(bond_dict[i])
             lines.append(f'{i} {bonds}\n')
         return lines
+
+    @property
+    def params_section(self):
+        if self.oniom_structure is None:
+            raise NoStructureException('No Structure given for this '
+                                       'OniomUniverse')
+        else:
+            return self.oniom_structure.params_section
+
+    params_section.__doc__ = OniomStructure.params_section.__doc__
 
     _re_element = re.compile(r'[A-Z][a-z]?')
 
@@ -307,7 +316,7 @@ class OniomStructure(object):
                             False: self._non_unique_types}
 
     @property
-    def params_section(self, ) -> List[str]:
+    def params_section(self) -> List[str]:
         """
         Parameter specification for Gaussian job using Amber MM
 
@@ -405,7 +414,9 @@ class OniomStructure(object):
                                self.structure.dihedral_types)
 
     def _get_improper_types_nu(self) -> List:
-        return self.structure.impropers
+        # Somewhere along antechamber -> acpype, the impropers are stored
+        # as dihedrals (of GROMACS function 1)
+        return self.structure.dihedrals
 
     @staticmethod
     def _make_impropertype_line(dihed: parmed.topologyobjects.Dihedral
@@ -417,7 +428,7 @@ class OniomStructure(object):
         phase = dihed.type.uphase.value_in_unit(parmed.unit.degree)
         per = dihed.type.per
         return (f'ImpTrs {a1:2} {a2:2} {a3:2} {a4:2}  '
-                f'{phi_k: >5.1f}  {phase:5.1f} {per:3.1f}')
+                f'{phi_k: >5.1f}  {phase:5.1f} {per:3.1f}\n')
 
     def _get_dihedral_types_uniq(self, ) -> List:
         # Somewhere along antechamber -> acpype, the impropers are stored
@@ -428,7 +439,11 @@ class OniomStructure(object):
                                self.structure.rb_torsion_types)
 
     def _get_dihedral_types_nu(self) -> List:
-        return self.structure.dihedrals
+        # Somewhere along antechamber -> acpype, the impropers are stored
+        # as dihedrals (of GROMACS function 1)
+        # and the dihedrals get stored as Ryckaert-Bellemans
+        # dihedrals (function 3)
+        return self.structure.rb_torsions
 
     @staticmethod
     def _make_dihedraltype_line(dihed: parmed.topologyobjects.Dihedral
