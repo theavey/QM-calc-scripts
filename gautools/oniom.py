@@ -27,7 +27,7 @@ A set of tools for setting up Gaussian ONIOM calculations
 
 import collections
 import re
-from typing import List
+from typing import List, Union, Tuple
 
 import MDAnalysis
 import parmed
@@ -133,15 +133,15 @@ class OniomUniverse(object):
             self.universe = MDAnalysis.Universe(*univ_args, **univ_kwargs)
         else:
             self.universe = univ
-        if structure is None:
-            if structure_file is None:
-                self.structure = None
-            else:
-                self.structure = parmed.load_file(structure_file,
-                                                  *structure_args,
-                                                  **structure_kwargs)
-        else:
-            self.structure = structure
+        try:
+            self.oniom_structure = OniomStructure(
+                structure=structure,
+                structure_file=structure_file,
+                structure_args=structure_args,
+                structure_kwargs=structure_kwargs)
+            self.params_section = self.oniom_structure.params_section
+        except NoStructureException:
+            self.oniom_structure = None
         self.high_select = high_select
         self.low_select = low_select
         self.overlap_okay = overlap_okay
@@ -168,7 +168,8 @@ class OniomUniverse(object):
         low_atoms = self.universe.select_atoms(self.low_select)
         n_atoms_in_both = high_atoms.intersection(low_atoms).n_atoms
         if n_atoms_in_both and not self.overlap_okay:
-            raise ValueError('The selections are not mutually exclusive')
+            raise ValueError('The selections are not mutually exclusive. '
+                             'Make mutually exclusive or set overlap_okay=True')
         lines = []
         line_num = 0
         for atom in self.universe.atoms:
@@ -216,6 +217,63 @@ class OniomUniverse(object):
             lines.append(f'{i} {bonds}\n')
         return lines
 
+    _re_element = re.compile(r'[A-Z][a-z]?')
+
+    def _get_elem(self, atom: MDAnalysis.core.groups.Atom) -> str:
+        """
+        Get element name from Atom object
+
+        This counts on any multi-letter element being named as Ca (capital
+        followed by lower case). Also, single-letter element names must be
+        capitalized and not followed by a lower-case letter.
+
+        An alternative method could be a mapping from masses to elements, or
+        use the parmed Structure which knows element information.
+        """
+        elem_match = self._re_element.match(atom.name)
+        if elem_match:
+            return elem_match.group(0)
+        else:
+            raise ValueError(f'Could not find element for atom {atom}')
+
+    def _make_atom_line(self, atom: MDAnalysis.core.groups.Atom,
+                        level: str,) -> str:
+        elem = self._get_elem(atom)
+        line = (f'{elem}-'
+                f'{atom.type}-'
+                f'{atom.charge:3f} {self.freeze_dict[level]} '
+                f'{atom.position[0]:4f} '
+                f'{atom.position[1]:4f} '
+                f'{atom.position[2]:4f} {level}\n')
+        return line
+
+    class SelectionError(ValueError):
+        pass
+
+
+class NoStructureException(Exception):
+    pass
+
+
+class OniomStructure(object):
+
+    def __init__(self,
+                 structure: parmed.structure.Structure = None,
+                 structure_file: str = None,
+                 structure_args: Union[Tuple, List] = None,
+                 structure_kwargs: dict = None,):
+        if structure is None:
+            if (structure_file is None and
+                    structure_args is None and
+                    structure_kwargs is None):
+                raise NoStructureException
+            else:
+                self.structure = parmed.load_file(structure_file,
+                                                  *structure_args,
+                                                  **structure_kwargs)
+        else:
+            self.structure = structure
+
     @property
     def params_section(self, ) -> List[str]:
         """
@@ -253,36 +311,6 @@ class OniomUniverse(object):
         for dihed in improper_types:
             lines.append(self._make_impropertype_line(dihed))
         return lines
-
-    _re_element = re.compile(r'[A-Z][a-z]?')
-
-    def _get_elem(self, atom: MDAnalysis.core.groups.Atom) -> str:
-        """
-        Get element name from Atom object
-
-        This counts on any multi-letter element being named as Ca (capital
-        followed by lower case). Also, single-letter element names must be
-        capitalized and not followed by a lower-case letter.
-
-        An alternative method could be a mapping from masses to elements, or
-        use the parmed Structure which knows element information.
-        """
-        elem_match = self._re_element.match(atom.name)
-        if elem_match:
-            return elem_match.group(0)
-        else:
-            raise ValueError(f'Could not find element for atom {atom}')
-
-    def _make_atom_line(self, atom: MDAnalysis.core.groups.Atom,
-                        level: str,) -> str:
-        elem = self._get_elem(atom)
-        line = (f'{elem}-'
-                f'{atom.type}-'
-                f'{atom.charge:3f} {self.freeze_dict[level]} '
-                f'{atom.position[0]:4f} '
-                f'{atom.position[1]:4f} '
-                f'{atom.position[2]:4f} {level}\n')
-        return line
 
     def _get_atom_types(self,) -> set:
         atom_types = set()
@@ -376,6 +404,3 @@ class OniomUniverse(object):
                   ' '.join([f'{i: >6.3f}' for i in phis]) +
                   ' 0.0\n')
         return output
-
-    class SelectionError(ValueError):
-        pass
