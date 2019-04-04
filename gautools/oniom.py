@@ -261,7 +261,7 @@ class OniomStructure(object):
         output = (f'AmbTrs {a1:2} {a2:2} {a3:2} {a4:2}  ' +
                   ' '.join([f'{i: >3d}' for i in phases]) + ' ' +
                   ' '.join([f'{i: >6.3f}' for i in phis]) +
-                  ' 0.0\n')
+                  ' -1.0\n')
         return output
 
     def _remove_unused_terms(self, types) -> Dict[str, list]:
