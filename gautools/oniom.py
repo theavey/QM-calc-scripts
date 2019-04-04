@@ -27,9 +27,10 @@ A set of tools for setting up Gaussian ONIOM calculations
 
 import collections
 import re
-from typing import List, Union, Tuple
+from typing import List, Union, Tuple, Dict
 
 import MDAnalysis
+import numpy as np
 import parmed
 
 __all__ = ['OniomUniverse']
@@ -46,7 +47,8 @@ class OniomStructure(object):
                  structure_file: str = None,
                  structure_args: Union[Tuple, List] = None,
                  structure_kwargs: dict = None,
-                 unique_types: bool = False):
+                 only_unique_types: bool = False,
+                 only_used_terms: bool = True):
         """
         Initialize OniomStructure to create Gaussian Amber MM input section
 
@@ -56,13 +58,21 @@ class OniomStructure(object):
             Structure
         :param structure_kwargs: keyword arguments to be provided to instantiate
             the Structure
-        :param unique_types: If False (default), all bonds, angles, dihedrals,
+        :param only_unique_types: If False (default), all bonds, angles, dihedrals,
             and impropers will be included.
             If True, only the unique elements for each of those will be
             included, which may not define the terms for all possible
             interactions because one type may be used for several atom types.
             For example, there might be an angle_type that should be used for
             "*-C3-C3", but it might only get defined for "H1-C3-C3".
+        :param only_used_terms: If True (default), the params returned will
+            only include those with all atoms contained in the atoms actually
+            used. This can make the section returned shorter if not all atoms
+            have been selected, especially if `only_unique_types` is False.
+            This will also require `atoms_used_indices` to be defined, which
+            it will be if `molecule_section` is accessed first (in an associated
+            OniomUniverse).
+            If False, all parameters will be given.
         """
         if structure is None:
             if (structure_file is None and
@@ -75,7 +85,7 @@ class OniomStructure(object):
                                                   **structure_kwargs)
         else:
             self.structure = structure
-        self.unique_types = unique_types
+        self.only_unique_types = only_unique_types
         self._unique_types = {
             'bonds': self._get_bond_types_uniq(),
             'angles': self._get_angle_types_uniq(),
@@ -89,6 +99,8 @@ class OniomStructure(object):
             'impropers': self._get_improper_types_nu()}
         self._types_dict = {True: self._unique_types,
                             False: self._non_unique_types}
+        self.atoms_used_indices = None
+        self.only_used_terms = only_used_terms
 
     @property
     def params_section(self) -> List[str]:
@@ -106,7 +118,9 @@ class OniomStructure(object):
         # wildcards), or just iterate over all bonds/angles/dihedrals
         # instead of iterating over *_types.
         lines = list()
-        types = self._types_dict[self.unique_types]
+        types = self._types_dict[self.only_unique_types]
+        if self.only_used_terms and self.atoms_used_indices is not None:
+            types = self._remove_unused_terms(types)
         lines.append('! Van der Waals parameters\n!\n')
         atom_types = self._get_atom_types()
         for at in atom_types:
@@ -239,6 +253,24 @@ class OniomStructure(object):
                   ' '.join([f'{i: >6.3f}' for i in phis]) +
                   ' 0.0\n')
         return output
+
+    def _remove_unused_terms(self, types) -> Dict[str, list]:
+        atoms_used = np.array(self.structure.atoms)[self.atoms_used_indices]
+        n_atoms_by_type = {'bonds': 2, 'angles': 3, 'dihedrals': 4,
+                           'impropers': 4}
+        for key in types:
+            n_atoms = n_atoms_by_type[key]
+            return_params = []
+            input_params = types[key]
+            for param in input_params:
+                for i in range(n_atoms):
+                    i += 1
+                    if not getattr(param, f'atom{i}') in atoms_used:
+                        break
+                else:
+                    return_params.append(param)
+            types[key] = return_params
+        return types
 
 
 class OniomUniverse(object):
@@ -375,6 +407,7 @@ class OniomUniverse(object):
         if n_atoms_in_both and not self.overlap_okay:
             raise ValueError('The selections are not mutually exclusive. '
                              'Make mutually exclusive or set overlap_okay=True')
+        atoms_used_indices = []
         lines = []
         line_num = 0
         for atom in self.universe.atoms:
@@ -386,12 +419,15 @@ class OniomUniverse(object):
                 continue
             line_num += 1
             lines.append(self._make_atom_line(atom=atom, level=level,))
+            atoms_used_indices.append(atom.index)
             self.atom_to_line_num[atom] = line_num
         sel_n_atoms = (high_atoms.n_atoms + low_atoms.n_atoms - n_atoms_in_both)
         if line_num != sel_n_atoms:
             raise ValueError('Number of lines and n_atoms in selections differ '
                              f'({line_num} and {sel_n_atoms})')
         self.n_atoms_in_input = sel_n_atoms
+        if self.oniom_structure is not None:
+            self.oniom_structure.atoms_used_indices = atoms_used_indices
         return lines
 
     @property
