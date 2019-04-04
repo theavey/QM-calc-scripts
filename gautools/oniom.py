@@ -123,24 +123,34 @@ class OniomStructure(object):
             types = self._remove_unused_terms(types)
         lines.append('! Van der Waals parameters\n!\n')
         atom_types = self._get_atom_types()
+        param_lines = set()
         for at in atom_types:
-            lines.append(self._make_atomtype_line(at))
+            param_lines.add(self._make_atomtype_line(at))
+        lines += list(param_lines)
         lines.append('! Stretch parameters\n!\n')
         bond_types = types['bonds']
+        param_lines = set()
         for bond in bond_types:
-            lines.append(self._make_bondtype_line(bond))
+            param_lines.add(self._make_bondtype_line(bond))
+        lines += list(param_lines)
         lines.append('! Bend parameters\n!\n')
         angle_types = types['angles']
+        param_lines = set()
         for angle in angle_types:
-            lines.append(self._make_angletype_line(angle))
+            param_lines.add(self._make_angletype_line(angle))
+        lines += list(param_lines)
         lines.append('! Dihedral parameters\n!\n')
         dihedral_types = types['dihedrals']
+        param_lines = set()
         for dihed in dihedral_types:
-            lines.append(self._make_dihedraltype_line(dihed))
+            param_lines.add(self._make_dihedraltype_line(dihed))
+        lines += list(param_lines)
         lines.append('! Improper dihedral parameters\n!\n')
         improper_types = types['impropers']
+        param_lines = set()
         for dihed in improper_types:
-            lines.append(self._make_impropertype_line(dihed))
+            param_lines.add(self._make_impropertype_line(dihed))
+        lines += list(param_lines)
         return lines
 
     def _get_atom_types(self,) -> set:
