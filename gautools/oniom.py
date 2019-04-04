@@ -35,6 +35,212 @@ import parmed
 __all__ = ['OniomUniverse']
 
 
+class NoStructureException(Exception):
+    pass
+
+
+class OniomStructure(object):
+
+    def __init__(self,
+                 structure: parmed.structure.Structure = None,
+                 structure_file: str = None,
+                 structure_args: Union[Tuple, List] = None,
+                 structure_kwargs: dict = None,
+                 unique_types: bool = False):
+        """
+        Initialize OniomStructure to create Gaussian Amber MM input section
+
+        :param structure_file: filename (first argument) to be provided to
+            instantiate the Structure
+        :param structure_args: arguments to be provided to instantiate the
+            Structure
+        :param structure_kwargs: keyword arguments to be provided to instantiate
+            the Structure
+        :param unique_types: If False (default), all bonds, angles, dihedrals,
+            and impropers will be included.
+            If True, only the unique elements for each of those will be
+            included, which may not define the terms for all possible
+            interactions because one type may be used for several atom types.
+            For example, there might be an angle_type that should be used for
+            "*-C3-C3", but it might only get defined for "H1-C3-C3".
+        """
+        if structure is None:
+            if (structure_file is None and
+                    structure_args is None and
+                    structure_kwargs is None):
+                raise NoStructureException
+            else:
+                self.structure = parmed.load_file(structure_file,
+                                                  *structure_args,
+                                                  **structure_kwargs)
+        else:
+            self.structure = structure
+        self.unique_types = unique_types
+        self._unique_types = {
+            'bonds': self._get_bond_types_uniq(),
+            'angles': self._get_angle_types_uniq(),
+            'dihedrals': self._get_dihedral_types_uniq(),
+            'impropers': self._get_improper_types_uniq()
+        }
+        self._non_unique_types = {
+            'bonds': self._get_bond_types_nu(),
+            'angles': self._get_angle_types_nu(),
+            'dihedrals': self._get_dihedral_types_nu(),
+            'impropers': self._get_improper_types_nu()}
+        self._types_dict = {True: self._unique_types,
+                            False: self._non_unique_types}
+
+    @property
+    def params_section(self) -> List[str]:
+        """
+        Parameter specification for Gaussian job using Amber MM
+
+        :return: The lines to be included for Gaussian jobs using Amber MM and
+            HardFirst, SoftFirst, or SoftOnly
+        """
+        # This doesn't seem perfect: the selection functions don't
+        # really work because (for example) a single bond_type might
+        # be used for different atom types, which is what is
+        # currently assumed. Need to find a way to either find all
+        # atom types for which it should be used (possibly using
+        # wildcards), or just iterate over all bonds/angles/dihedrals
+        # instead of iterating over *_types.
+        lines = list()
+        types = self._types_dict[self.unique_types]
+        lines.append('! Van der Waals parameters\n!\n')
+        atom_types = self._get_atom_types()
+        for at in atom_types:
+            lines.append(self._make_atomtype_line(at))
+        lines.append('! Stretch parameters\n!\n')
+        bond_types = types['bonds']
+        for bond in bond_types:
+            lines.append(self._make_bondtype_line(bond))
+        lines.append('! Bend parameters\n!\n')
+        angle_types = types['angles']
+        for angle in angle_types:
+            lines.append(self._make_angletype_line(angle))
+        lines.append('! Dihedral parameters\n!\n')
+        dihedral_types = types['dihedrals']
+        for dihed in dihedral_types:
+            lines.append(self._make_dihedraltype_line(dihed))
+        lines.append('! Improper dihedral parameters\n!\n')
+        improper_types = types['impropers']
+        for dihed in improper_types:
+            lines.append(self._make_impropertype_line(dihed))
+        return lines
+
+    def _get_atom_types(self,) -> set:
+        atom_types = set()
+        for atom in self.structure.atoms:
+            atom_types.add(atom.atom_type)
+        return atom_types
+
+    @staticmethod
+    def _make_atomtype_line(atom_type) -> str:
+        sigma = atom_type.urmin
+        epsilon = atom_type.uepsilon
+        sigma = sigma.value_in_unit(parmed.unit.angstrom)
+        epsilon = epsilon.value_in_unit(parmed.unit.kilocalorie_per_mole)
+        return f'VDW {atom_type.name: <2} {sigma:4f}  {epsilon:4f}\n'
+
+    @staticmethod
+    def _get_types(instances, types) -> List:
+        instance_types = list()
+        for _type in types:
+            for inst in instances:
+                if inst.type == _type:
+                    instance_types.append(inst)
+                    break
+        return instance_types
+
+    def _get_bond_types_uniq(self, ) -> List:
+        return self._get_types(self.structure.bonds, self.structure.bond_types)
+
+    def _get_bond_types_nu(self) -> List:
+        return self.structure.bonds
+
+    @staticmethod
+    def _make_bondtype_line(bond: parmed.topologyobjects.Bond) -> str:
+        a1, a2 = bond.atom1.type, bond.atom2.type
+        k = bond.type.uk.value_in_unit(parmed.unit.kilocalorie_per_mole /
+                                       parmed.unit.angstrom ** 2)
+        req = bond.type.ureq.value_in_unit(parmed.unit.angstrom)
+        return f'HrmStr1 {a1:2} {a2:2}  {k: <5.1f}  {req: <5.3f}\n'
+
+    def _get_angle_types_uniq(self, ) -> List:
+        return self._get_types(self.structure.angles,
+                               self.structure.angle_types)
+
+    def _get_angle_types_nu(self) -> List:
+        return self.structure.angles
+
+    @staticmethod
+    def _make_angletype_line(angle: parmed.topologyobjects.Angle) -> str:
+        a1, a2, a3 = angle.atom1.type, angle.atom2.type, angle.atom3.type
+        k = angle.type.uk.value_in_unit(parmed.unit.kilocalorie_per_mole /
+                                        parmed.unit.radian ** 2)
+        thetaeq = angle.type.utheteq.value_in_unit(parmed.unit.degree)
+        return f'HrmBnd1 {a1:2} {a2:2} {a3:2}  {k: >5.1f}  {thetaeq:6.2f}\n'
+
+    def _get_improper_types_uniq(self, ) -> List:
+        # Somewhere along antechamber -> acpype, the impropers are stored
+        # as dihedrals (of GROMACS function 1)
+        return self._get_types(self.structure.dihedrals,
+                               self.structure.dihedral_types)
+
+    def _get_improper_types_nu(self) -> List:
+        # Somewhere along antechamber -> acpype, the impropers are stored
+        # as dihedrals (of GROMACS function 1)
+        return self.structure.dihedrals
+
+    @staticmethod
+    def _make_impropertype_line(dihed: parmed.topologyobjects.Dihedral
+                                ) -> str:
+        a1, a2, a3, a4 = (dihed.atom1.type, dihed.atom2.type,
+                          dihed.atom3.type, dihed.atom4.type)
+        phi_k = dihed.type.uphi_k.value_in_unit(
+            parmed.unit.kilocalorie_per_mole)
+        phase = dihed.type.uphase.value_in_unit(parmed.unit.degree)
+        per = dihed.type.per
+        return (f'ImpTrs {a1:2} {a2:2} {a3:2} {a4:2}  '
+                f'{phi_k: >5.1f}  {phase:5.1f} {per:3.1f}\n')
+
+    def _get_dihedral_types_uniq(self, ) -> List:
+        # Somewhere along antechamber -> acpype, the impropers are stored
+        # as dihedrals (of GROMACS function 1)
+        # and the dihedrals get stored as Ryckaert-Bellemans
+        # dihedrals (function 3)
+        return self._get_types(self.structure.rb_torsions,
+                               self.structure.rb_torsion_types)
+
+    def _get_dihedral_types_nu(self) -> List:
+        # Somewhere along antechamber -> acpype, the impropers are stored
+        # as dihedrals (of GROMACS function 1)
+        # and the dihedrals get stored as Ryckaert-Bellemans
+        # dihedrals (function 3)
+        return self.structure.rb_torsions
+
+    @staticmethod
+    def _make_dihedraltype_line(dihed: parmed.topologyobjects.Dihedral
+                                ) -> str:
+        a1, a2, a3, a4 = (dihed.atom1.type, dihed.atom2.type,
+                          dihed.atom3.type, dihed.atom4.type)
+        dtl = parmed.DihedralTypeList.from_rbtorsion(dihed.type)
+        phases = [0] * 4
+        phis = [0.] * 4
+        for dihed_type in dtl:
+            phi_k = dihed_type.uphi_k.value_in_unit(
+                parmed.unit.kilocalorie_per_mole)
+            phase = dihed_type.uphase.value_in_unit(parmed.unit.degree)
+            per = dihed_type.per
+            phases[per], phis[per] = phase, phi_k
+        output = (f'AmbTrs {a1:2} {a2:2} {a3:2} {a4:2}  ' +
+                  ' '.join([f'{i: >3d}' for i in phases]) + ' ' +
+                  ' '.join([f'{i: >6.3f}' for i in phis]) +
+                  ' 0.0\n')
+        return output
+
+
 class OniomUniverse(object):
     """
     Object to help easily create Gaussian ONIOM input sections
@@ -258,209 +464,3 @@ class OniomUniverse(object):
 
     class SelectionError(ValueError):
         pass
-
-
-class NoStructureException(Exception):
-    pass
-
-
-class OniomStructure(object):
-
-    def __init__(self,
-                 structure: parmed.structure.Structure = None,
-                 structure_file: str = None,
-                 structure_args: Union[Tuple, List] = None,
-                 structure_kwargs: dict = None,
-                 unique_types: bool = False):
-        """
-        Initialize OniomStructure to create Gaussian Amber MM input section
-
-        :param structure_file: filename (first argument) to be provided to
-            instantiate the Structure
-        :param structure_args: arguments to be provided to instantiate the
-            Structure
-        :param structure_kwargs: keyword arguments to be provided to instantiate
-            the Structure
-        :param unique_types: If False (default), all bonds, angles, dihedrals,
-            and impropers will be included.
-            If True, only the unique elements for each of those will be
-            included, which may not define the terms for all possible
-            interactions because one type may be used for several atom types.
-            For example, there might be an angle_type that should be used for
-            "*-C3-C3", but it might only get defined for "H1-C3-C3".
-        """
-        if structure is None:
-            if (structure_file is None and
-                    structure_args is None and
-                    structure_kwargs is None):
-                raise NoStructureException
-            else:
-                self.structure = parmed.load_file(structure_file,
-                                                  *structure_args,
-                                                  **structure_kwargs)
-        else:
-            self.structure = structure
-        self.unique_types = unique_types
-        self._unique_types = {
-            'bonds': self._get_bond_types_uniq(),
-            'angles': self._get_angle_types_uniq(),
-            'dihedrals': self._get_dihedral_types_uniq(),
-            'impropers': self._get_improper_types_uniq()
-        }
-        self._non_unique_types = {
-            'bonds': self._get_bond_types_nu(),
-            'angles': self._get_angle_types_nu(),
-            'dihedrals': self._get_dihedral_types_nu(),
-            'impropers': self._get_improper_types_nu()}
-        self._types_dict = {True: self._unique_types,
-                            False: self._non_unique_types}
-
-    @property
-    def params_section(self) -> List[str]:
-        """
-        Parameter specification for Gaussian job using Amber MM
-
-        :return: The lines to be included for Gaussian jobs using Amber MM and
-            HardFirst, SoftFirst, or SoftOnly
-        """
-        # This doesn't seem perfect: the selection functions don't
-        # really work because (for example) a single bond_type might
-        # be used for different atom types, which is what is
-        # currently assumed. Need to find a way to either find all
-        # atom types for which it should be used (possibly using
-        # wildcards), or just iterate over all bonds/angles/dihedrals
-        # instead of iterating over *_types.
-        lines = list()
-        types = self._types_dict[self.unique_types]
-        lines.append('! Van der Waals parameters\n!\n')
-        atom_types = self._get_atom_types()
-        for at in atom_types:
-            lines.append(self._make_atomtype_line(at))
-        lines.append('! Stretch parameters\n!\n')
-        bond_types = types['bonds']
-        for bond in bond_types:
-            lines.append(self._make_bondtype_line(bond))
-        lines.append('! Bend parameters\n!\n')
-        angle_types = types['angles']
-        for angle in angle_types:
-            lines.append(self._make_angletype_line(angle))
-        lines.append('! Dihedral parameters\n!\n')
-        dihedral_types = types['dihedrals']
-        for dihed in dihedral_types:
-            lines.append(self._make_dihedraltype_line(dihed))
-        lines.append('! Improper dihedral parameters\n!\n')
-        improper_types = types['impropers']
-        for dihed in improper_types:
-            lines.append(self._make_impropertype_line(dihed))
-        return lines
-
-    def _get_atom_types(self,) -> set:
-        atom_types = set()
-        for atom in self.structure.atoms:
-            atom_types.add(atom.atom_type)
-        return atom_types
-
-    @staticmethod
-    def _make_atomtype_line(atom_type) -> str:
-        sigma = atom_type.urmin
-        epsilon = atom_type.uepsilon
-        sigma = sigma.value_in_unit(parmed.unit.angstrom)
-        epsilon = epsilon.value_in_unit(parmed.unit.kilocalorie_per_mole)
-        return f'VDW {atom_type.name: <2} {sigma:4f}  {epsilon:4f}\n'
-
-    @staticmethod
-    def _get_types(instances, types) -> List:
-        instance_types = list()
-        for _type in types:
-            for inst in instances:
-                if inst.type == _type:
-                    instance_types.append(inst)
-                    break
-        return instance_types
-
-    def _get_bond_types_uniq(self, ) -> List:
-        return self._get_types(self.structure.bonds, self.structure.bond_types)
-
-    def _get_bond_types_nu(self) -> List:
-        return self.structure.bonds
-
-    @staticmethod
-    def _make_bondtype_line(bond: parmed.topologyobjects.Bond) -> str:
-        a1, a2 = bond.atom1.type, bond.atom2.type
-        k = bond.type.uk.value_in_unit(parmed.unit.kilocalorie_per_mole /
-                                       parmed.unit.angstrom ** 2)
-        req = bond.type.ureq.value_in_unit(parmed.unit.angstrom)
-        return f'HrmStr1 {a1:2} {a2:2}  {k: <5.1f}  {req: <5.3f}\n'
-
-    def _get_angle_types_uniq(self, ) -> List:
-        return self._get_types(self.structure.angles,
-                               self.structure.angle_types)
-
-    def _get_angle_types_nu(self) -> List:
-        return self.structure.angles
-
-    @staticmethod
-    def _make_angletype_line(angle: parmed.topologyobjects.Angle) -> str:
-        a1, a2, a3 = angle.atom1.type, angle.atom2.type, angle.atom3.type
-        k = angle.type.uk.value_in_unit(parmed.unit.kilocalorie_per_mole /
-                                        parmed.unit.radian ** 2)
-        thetaeq = angle.type.utheteq.value_in_unit(parmed.unit.degree)
-        return f'HrmBnd1 {a1:2} {a2:2} {a3:2}  {k: >5.1f}  {thetaeq:6.2f}\n'
-
-    def _get_improper_types_uniq(self, ) -> List:
-        # Somewhere along antechamber -> acpype, the impropers are stored
-        # as dihedrals (of GROMACS function 1)
-        return self._get_types(self.structure.dihedrals,
-                               self.structure.dihedral_types)
-
-    def _get_improper_types_nu(self) -> List:
-        # Somewhere along antechamber -> acpype, the impropers are stored
-        # as dihedrals (of GROMACS function 1)
-        return self.structure.dihedrals
-
-    @staticmethod
-    def _make_impropertype_line(dihed: parmed.topologyobjects.Dihedral
-                                ) -> str:
-        a1, a2, a3, a4 = (dihed.atom1.type, dihed.atom2.type,
-                          dihed.atom3.type, dihed.atom4.type)
-        phi_k = dihed.type.uphi_k.value_in_unit(
-            parmed.unit.kilocalorie_per_mole)
-        phase = dihed.type.uphase.value_in_unit(parmed.unit.degree)
-        per = dihed.type.per
-        return (f'ImpTrs {a1:2} {a2:2} {a3:2} {a4:2}  '
-                f'{phi_k: >5.1f}  {phase:5.1f} {per:3.1f}\n')
-
-    def _get_dihedral_types_uniq(self, ) -> List:
-        # Somewhere along antechamber -> acpype, the impropers are stored
-        # as dihedrals (of GROMACS function 1)
-        # and the dihedrals get stored as Ryckaert-Bellemans
-        # dihedrals (function 3)
-        return self._get_types(self.structure.rb_torsions,
-                               self.structure.rb_torsion_types)
-
-    def _get_dihedral_types_nu(self) -> List:
-        # Somewhere along antechamber -> acpype, the impropers are stored
-        # as dihedrals (of GROMACS function 1)
-        # and the dihedrals get stored as Ryckaert-Bellemans
-        # dihedrals (function 3)
-        return self.structure.rb_torsions
-
-    @staticmethod
-    def _make_dihedraltype_line(dihed: parmed.topologyobjects.Dihedral
-                                ) -> str:
-        a1, a2, a3, a4 = (dihed.atom1.type, dihed.atom2.type,
-                          dihed.atom3.type, dihed.atom4.type)
-        dtl = parmed.DihedralTypeList.from_rbtorsion(dihed.type)
-        phases = [0] * 4
-        phis = [0.] * 4
-        for dihed_type in dtl:
-            phi_k = dihed_type.uphi_k.value_in_unit(
-                parmed.unit.kilocalorie_per_mole)
-            phase = dihed_type.uphase.value_in_unit(parmed.unit.degree)
-            per = dihed_type.per
-            phases[per], phis[per] = phase, phi_k
-        output = (f'AmbTrs {a1:2} {a2:2} {a3:2} {a4:2}  ' +
-                  ' '.join([f'{i: >3d}' for i in phases]) + ' ' +
-                  ' '.join([f'{i: >6.3f}' for i in phis]) +
-                  ' 0.0\n')
-        return output
