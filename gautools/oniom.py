@@ -74,15 +74,18 @@ class OniomStructure(object):
             OniomUniverse).
             If False, all parameters will be given.
         """
+        _struc_args = list() if structure_args is None else structure_args
+        _struc_kwargs = dict() if structure_kwargs is None else structure_kwargs
+        if structure_file is not None:
+            _struc_args = [structure_file] + _struc_args
         if structure is None:
             if (structure_file is None and
                     structure_args is None and
                     structure_kwargs is None):
                 raise NoStructureException
             else:
-                self.structure = parmed.load_file(structure_file,
-                                                  *structure_args,
-                                                  **structure_kwargs)
+                self.structure = parmed.load_file(*_struc_args,
+                                                  **_struc_kwargs)
         else:
             self.structure = structure
         self.only_unique_types = only_unique_types
@@ -318,7 +321,8 @@ class OniomUniverse(object):
 
     Note, if you do not need the parameter section (e.g., only using
     already included AMBER atom types), the structure or structure files
-    need not be specified.
+    need not be specified. That portion is optional, and `molecule_section` and
+    `params_section` do not depend on the structure.
 
     The interfaces between high and low are not treated specially, so link
     atoms will need to be manually treated. That can be done after writing
@@ -373,6 +377,9 @@ class OniomUniverse(object):
             commands (0 for unfrozen, -1 for frozen).
             Default is `{'H': 0, 'L': -1}`
         """
+        univ_args = list() if univ_args is None else univ_args
+        # probably invalid anyway because Universe can't be kwarg only
+        univ_kwargs = dict() if univ_kwargs is None else univ_kwargs
         if univ is None:
             self.universe = MDAnalysis.Universe(*univ_args, **univ_kwargs)
         else:
