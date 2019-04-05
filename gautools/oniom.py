@@ -58,8 +58,8 @@ class OniomStructure(object):
             Structure
         :param structure_kwargs: keyword arguments to be provided to instantiate
             the Structure
-        :param only_unique_types: If False (default), all bonds, angles, dihedrals,
-            and impropers will be included.
+        :param only_unique_types: If False (default), all bonds, angles,
+            dihedrals, and impropers will be included.
             If True, only the unique elements for each of those will be
             included, which may not define the terms for all possible
             interactions because one type may be used for several atom types.

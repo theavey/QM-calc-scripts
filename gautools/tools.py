@@ -28,6 +28,8 @@ A set of tools for working with computational chemistry files and such
 import re
 import pathlib
 from six import string_types
+
+from .oniom import OniomUniverse
 from paratemp import copy_no_overwrite
 
 
@@ -173,7 +175,8 @@ def make_gaussian_input(out_file, xyz, job_name='default job name',
                         func='wb97xd', basis='6-31g(d)',
                         route_other=None,
                         charg_mult='0 1',
-                        footer=None,):
+                        footer=None,
+                        oniom: dict = None):
     """
     Write Gaussian input file
 
@@ -231,12 +234,29 @@ def make_gaussian_input(out_file, xyz, job_name='default job name',
 
     :param str footer: Default: None. Footer of input file. Useful for RESP
         charge calculation jobs and such.
+
+    :param dict oniom: dict to pass to :py:class:`gautools.oniom.OniomUniverse`
+        constructor. The create object will then be used to make the molecule
+        specification, and add the connectivity and MM parameters to the footer.
     :return: The Path to the written file
     :rtype: pathlib.Path
     """
     link0 = _make_link0(checkpoint, rwf, str(int(nproc)-1), mem)
     route_sec = _make_route(route, opt, td, func, basis, route_other)
-    xyz_lines = _get_xyz_lines(xyz)
+    if oniom is not None:
+        ou = OniomUniverse(**oniom)
+        xyz_lines = ou.molecule_section
+        bon_sec = ''.join(ou.bonds_section)
+        par_sec = ''.join(ou.params_section)
+        if footer is None:
+            footer_list = [bon_sec, par_sec]
+        else:
+            footer_list = [bon_sec, footer, par_sec]
+            # This should be the right order in most cases:
+            # http://gaussian.com/input/
+        footer = '\n'.join(footer_list)
+    else:
+        xyz_lines = _get_xyz_lines(xyz)
     own_handle = False
     if isinstance(out_file, string_types):
         own_handle = True
