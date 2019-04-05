@@ -289,7 +289,7 @@ class OniomUniverse(object):
 
 
     There are a few ways to instantiate this object.
-    First, it can be instatiated with an existing MDAnalysis Universe
+    First, it can be instantiated with an existing MDAnalysis Universe
     instance and an existing parmed Structure instance:
 
     >>> univ = MDAnalysis.Universe('geom.pdb', 'traj.xtc')
@@ -322,18 +322,14 @@ class OniomUniverse(object):
 
     The interfaces between high and low are not treated specially, so link
     atoms will need to be manually treated. That can be done after writing
-    to an input file, or using something like:
+    to an input file, or using something like::
 
-    >>> interface_atom = univ.select_atoms('bynum 88')
-    >>> interface_atom_index = ou.atom_to_line_num[interface_atom] - 1
-
-    (because the dict gives a (Gaussian) 1-based index)
-
-    >>> interface_atom_line = mol_sec[interface_atom_index][:-2]+' H-H1-0.1\\n'
-
-    (remove newline, add link atom definition and newline)
-
-    >>> mol_sec[interface_atom_index] = interface_atom_line
+        interface_atom = univ.select_atoms('bynum 88')
+        interface_atom_index = ou.atom_to_line_num[interface_atom] - 1
+        # (because the dict gives a (Gaussian) 1-based index)
+        interface_atom_line = mol_sec[interface_atom_index][:-2]+' H-H1-0.1\\n'
+        # (remove newline, add link atom definition and newline)
+        mol_sec[interface_atom_index] = interface_atom_line
 
     """
 
