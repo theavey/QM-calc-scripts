@@ -257,6 +257,8 @@ def make_gaussian_input(out_file, xyz, job_name='default job name',
         footer = '\n'.join(footer_list)
     else:
         xyz_lines = _get_xyz_lines(xyz)
+    if _geom_checkpoint(route_sec):
+        xyz_lines = []
     own_handle = False
     if isinstance(out_file, string_types):
         own_handle = True
@@ -271,13 +273,14 @@ def make_gaussian_input(out_file, xyz, job_name='default job name',
         out_file.write(_make_newline_terminated(job_name))
         out_file.write('\n')  # blank line between sections
         out_file.write(_make_newline_terminated(charg_mult))
-        line = ''  # in case empty xyz_lines
-        for line in xyz_lines:
-            out_file.write(line)
-        if line[-1] == '\n':  # hopefully only 1 newline at most
-            out_file.write('\n')  # blank line between sections
+        if xyz_lines:
+            line = ''  # in case xyz_lines is empty (for IDE)
+            for line in xyz_lines:
+                out_file.write(line)
+            sec_break = '\n' if (line[-1] == '\n') else '\n\n'
+            out_file.write(sec_break)
         else:
-            out_file.write('\n\n')  # blank line between sections
+            out_file.write('\n')  # blank line between sections
         if footer:
             out_file.write(_make_newline_terminated(footer))
         out_file.write('\n')  # blank line before end of file
@@ -353,3 +356,9 @@ def _make_newline_terminated(line):
         return line
     else:
         return line + '\n'
+
+
+def _geom_checkpoint(route):
+    match = re.search(r'geom=\S*?checkpoint',
+                      route, re.IGNORECASE)
+    return True if match else False
