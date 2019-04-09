@@ -706,13 +706,13 @@ class Calc(object):
         manual_input = self.status['manual_input']
         manual_restart = self.status['manual_restart']
         if manual_input is not None:
-            com_name = self._update_g_in_memory_request(manual_input)
+            com_name = self._update_g_in_memory_cpu_request(manual_input)
             self._setup_and_run(com_name)
         elif self.between_levels:
             self._next_calc()
         else:
             if manual_restart is not None:
-                com_name = self._update_g_in_memory_request(manual_restart)
+                com_name = self._update_g_in_memory_cpu_request(manual_restart)
             else:
                 com_name = self._update_g_in_for_restart()
             self._copy_in_restart()
@@ -740,8 +740,8 @@ class Calc(object):
         except shutil.SameFileError:
             self.log.info('Working on the same node; no need to copy files')
 
-    def _update_g_in_memory_request(self, com_name=None):
-        self.log.debug('Updating Gaussian input memory for this node')
+    def _update_g_in_memory_cpu_request(self, com_name=None):
+        self.log.debug('Updating Gaussian memory and cpu request for this node')
         com_name = self.status['g_in_curr'] if com_name is None else com_name
         lines = open(com_name, 'r').readlines()
         paratemp.copy_no_overwrite(com_name, com_name+'.bak')
@@ -749,6 +749,8 @@ class Calc(object):
             for line in lines:
                 if '%mem=' in line:
                     line = f'%mem={self.mem}GB\n'
+                elif '%cpu=' in line:
+                    line = f'%cpu=0-{int(self.n_slots)-1}\n'
                 f_out.write(line)
         os.remove(pathlib.Path(com_name+'.bak'))
         self.log.info(f'Updated Gaussian input to use all the memory '
@@ -757,7 +759,7 @@ class Calc(object):
 
     def _update_g_in_for_restart(self):
         self.log.debug('Updating Gaussian input for restart')
-        com_name = self._update_g_in_memory_request()
+        com_name = self._update_g_in_memory_cpu_request()
         lines = open(com_name, 'r').readlines()
         paratemp.copy_no_overwrite(com_name, com_name+'.bak')
         with open(com_name, 'w') as f_out:
