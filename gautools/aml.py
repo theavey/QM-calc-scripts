@@ -709,7 +709,7 @@ class Calc(object):
             com_name = self._update_g_in_memory_cpu_request(manual_input)
             self._setup_and_run(com_name)
         elif self.between_levels:
-            self._copy_in_restart()
+            self._copy_in_restart('chk')
             self._next_calc()
         else:
             if manual_restart is not None:
@@ -719,39 +719,37 @@ class Calc(object):
             self._copy_in_restart()
             self._setup_and_run(com_name)
 
-    def _copy_in_restart(self):
-        self.log.debug('Copying rwf and chk files to scratch for restart')
+    def _copy_in_restart(self, file='both'):
+        f_type_options = ['chk', 'rwf']
+        if file == 'both':
+            f_types = f_type_options
+        else:
+            if file not in f_type_options:
+                self.log.warning(f'unrecognized file type {file}; trying it '
+                                 f'anyway...')
+            f_types = [file]
+        self.log.debug(f'Copying {f_types} files to scratch for restart')
         bn = self._base_name
-        old_rwf_path = self.last_scratch_path.joinpath(f'{bn}.rwf')
-        if not old_rwf_path.exists():
-            mes = f'Could not find old rwf file at {old_rwf_path}'
-            self.log.error(mes)
-            raise FileNotFoundError(mes)
-        old_chk_path = self.last_scratch_path.joinpath(f'{bn}.chk')
-        if not old_chk_path.exists():
-            mes = f'Could not find old chk file at {old_chk_path}'
-            self.log.error(mes)
-            raise FileNotFoundError(mes)
-        new_rwf_path = self.scratch_path.joinpath(old_rwf_path.name)
-        new_chk_path = self.scratch_path.joinpath(old_chk_path.name)
-        try:
-            if new_rwf_path.exists() and (new_rwf_path.stat().st_mtime >
-                                          old_rwf_path.stat().st_mtime):
-                self.log.debug(f'current rwf file newer than old '
-                               f'({old_rwf_path}). Not replacing.')
+        for f_type in f_types:
+            old_path = self.last_scratch_path.joinpath(f'{bn}.{f_type}')
+            if not old_path.exists():
+                mes = f'Could not find old {f_type} file at {old_path}'
+                self.log.error(mes)
+                raise FileNotFoundError(mes)
+            new_path = self.scratch_path.joinpath(old_path.name)
+            if new_path.exists() and (new_path.stat().st_mtime >
+                                      old_path.stat().st_mtime):
+                self.log.debug(f'current {f_type} file newer than old '
+                               f'({old_path}). Not replacing.')
             else:
-                shutil.copy(str(old_rwf_path), str(self.scratch_path))
-            if new_chk_path.exists() and (new_chk_path.stat().st_mtime >
-                                          old_chk_path.stat().st_mtime):
-                self.log.debug(f'current chk file newer than old '
-                               f'({old_chk_path}). Not replacing.')
-            else:
-                shutil.copy(str(old_chk_path), str(self.scratch_path))
-            self.log.info(f'If necessary, copied rwf and chk files from last '
-                          f'scratch directory: {self.last_scratch_path}\nto '
-                          f'node scratch dir: {self.scratch_path}')
-        except shutil.SameFileError:
-            self.log.info('Working on the same node; no need to copy files')
+                try:
+                    shutil.copy(str(old_path), str(self.scratch_path))
+                except shutil.SameFileError:
+                    self.log.info('Working on the same node; no need to '
+                                  f'copy {f_type} file')
+        self.log.info(f'If necessary, copied {f_types} files from last '
+                      f'scratch directory: {self.last_scratch_path}\nto '
+                      f'node scratch dir: {self.scratch_path}')
 
     def _update_g_in_memory_cpu_request(self, com_name=None):
         self.log.debug('Updating Gaussian memory and cpu request for this node')
