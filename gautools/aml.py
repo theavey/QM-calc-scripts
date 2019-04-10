@@ -709,6 +709,7 @@ class Calc(object):
             com_name = self._update_g_in_memory_cpu_request(manual_input)
             self._setup_and_run(com_name)
         elif self.between_levels:
+            self._copy_in_restart()
             self._next_calc()
         else:
             if manual_restart is not None:
@@ -731,12 +732,24 @@ class Calc(object):
             mes = f'Could not find old chk file at {old_chk_path}'
             self.log.error(mes)
             raise FileNotFoundError(mes)
+        new_rwf_path = self.scratch_path.joinpath(old_rwf_path.name)
+        new_chk_path = self.scratch_path.joinpath(old_chk_path.name)
         try:
-            shutil.copy(str(old_rwf_path), str(self.scratch_path))
-            shutil.copy(str(old_chk_path), str(self.scratch_path))
-            self.log.info(f'Copied rwf and chk files from last scratch '
-                          f'directory: {self.last_scratch_path}\nto node '
-                          f'scratch dir: {self.scratch_path}')
+            if new_rwf_path.exists() and (new_rwf_path.stat().st_mtime >
+                                          old_rwf_path.stat().st_mtime):
+                self.log.debug(f'current rwf file newer than old '
+                               f'({old_rwf_path}). Not replacing.')
+            else:
+                shutil.copy(str(old_rwf_path), str(self.scratch_path))
+            if new_chk_path.exists() and (new_chk_path.stat().st_mtime >
+                                          old_chk_path.stat().st_mtime):
+                self.log.debug(f'current chk file newer than old '
+                               f'({old_chk_path}). Not replacing.')
+            else:
+                shutil.copy(str(old_chk_path), str(self.scratch_path))
+            self.log.info(f'If necessary, copied rwf and chk files from last '
+                          f'scratch directory: {self.last_scratch_path}\nto '
+                          f'node scratch dir: {self.scratch_path}')
         except shutil.SameFileError:
             self.log.info('Working on the same node; no need to copy files')
 
