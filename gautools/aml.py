@@ -14,10 +14,10 @@ intermediate files to speed up subsequent calculations.
 
 ########################################################################
 #                                                                      #
-# This script/module was written by Thomas Heavey in 2018.             #
+# This script/module was written by Thomas Heavey in 2019.             #
 #        theavey@bu.edu     thomasjheavey@gmail.com                    #
 #                                                                      #
-# Copyright 2018 Thomas J. Heavey IV                                   #
+# Copyright 2018-2019 Thomas J. Heavey IV                              #
 #                                                                      #
 # Licensed under the Apache License, Version 2.0 (the "License");      #
 # you may not use this file except in compliance with the License.     #
@@ -50,6 +50,7 @@ import sys
 import threading
 import thtools
 import time
+from typing import List
 from gautools import tools
 import functools
 import filecmp
@@ -203,7 +204,7 @@ class Calc(object):
         self.chk_ln_path: pathlib.Path = None
         self.h_rt: str = None
         self.stdout_file: str = None
-        self.resub_cl: list[str] = None
+        self.resub_cl: List[str] = None
         self.job_id: str = None
         self.next_job_id: str = None
         self.resubmitted: bool = False
