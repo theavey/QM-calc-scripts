@@ -175,6 +175,7 @@ class Calc(object):
                 'criteria': criteria,
                 'react_dist': react_dist,
                 'mgi_dicts': mgi_dicts}
+            self.oniom = True if 'oniom' in mgi_dicts[0].keys() else False
             self.check_args()
             self._base_name = '{}-ind{}'.format(base_name, ind)
             self._json_name = '{}.json'.format(self._base_name)
@@ -215,7 +216,8 @@ class Calc(object):
         top, traj = args.pop('top'), args.pop('traj')
         crit = args.pop('criteria')
         if (geom is None and
-                (top is None or traj is None or crit is None)):
+                (top is None or traj is None or crit is None) and
+                (not self.oniom)):
             raise ValueError('either geometry or top, traj, and criteria must '
                              'be given')
         for key in args:
