@@ -126,7 +126,9 @@ class OniomStructure(object):
         # wildcards), or just iterate over all bonds/angles/dihedrals
         # instead of iterating over *_types.
         log.debug('Creating params_section in OniomStructure')
+        self._check_structure_universe_compatibility()
         lines = list()
+        # get types based on if only_unique_types is True or False
         types = self._types_dict[self.only_unique_types]
         if self.only_used_terms and self.atoms_used_indices is not None:
             types = self._remove_unused_terms(types)
@@ -291,6 +293,19 @@ class OniomStructure(object):
             types[key] = return_params
         return types
 
+    def _check_structure_universe_compatibility(self):
+        log.debug('Checking compatibility of this structure with given args')
+        if self.atoms_used_indices is None:
+            return None
+        max_ind = max(self.atoms_used_indices)
+        try:
+            self.structure.atoms[max_ind]
+            return None
+        except IndexError:
+            raise ValueError('given atoms_used_indices requests atoms that '
+                             'are not in this structure. Check to make sure '
+                             'this Structure is compatible with the Universe.')
+
 
 class OniomUniverse(object):
     """
@@ -391,6 +406,7 @@ class OniomUniverse(object):
             self.universe = MDAnalysis.Universe(*univ_args, **univ_kwargs)
         else:
             self.universe = univ
+        self._check_universe()
         try:
             self.oniom_structure = OniomStructure(
                 structure=structure,
@@ -446,10 +462,10 @@ class OniomUniverse(object):
             self.atom_to_line_num[atom] = line_num
         sel_n_atoms = (high_atoms.n_atoms + low_atoms.n_atoms - n_atoms_in_both)
         if line_num != sel_n_atoms:
-            log.error('Number of lines and n_atoms in selections differ '
-                      f'({line_num} and {sel_n_atoms})')
-            raise ValueError('Number of lines and n_atoms in selections differ '
-                             f'({line_num} and {sel_n_atoms})')
+            mes = ('Number of lines and n_atoms in selections differ '
+                   f'({line_num} and {sel_n_atoms})')
+            log.error(mes)
+            raise ValueError(mes)
         self.n_atoms_in_input = sel_n_atoms
         if self.oniom_structure is not None:
             self.oniom_structure.atoms_used_indices = atoms_used_indices
@@ -514,7 +530,9 @@ class OniomUniverse(object):
         if elem_match:
             return elem_match.group(0)
         else:
-            raise ValueError(f'Could not find element for atom {atom}')
+            mes = f'Could not find element for atom {atom}'
+            log.error(mes)
+            raise ValueError(mes)
 
     def _make_atom_line(self, atom: MDAnalysis.core.groups.Atom,
                         level: str,) -> str:
@@ -526,6 +544,25 @@ class OniomUniverse(object):
                 f'{atom.position[1]:4f} '
                 f'{atom.position[2]:4f} {level}\n')
         return line
+
+    def _check_universe(self):
+        log.debug('Checking attributes of this Universe')
+        if not hasattr(self.universe, 'bonds'):
+            mes = ('This Universe does not have defined bonds. Try '
+                   'an input with defined bonds or try `guess_bonds=True`.')
+            log.error(mes)
+            raise ValueError(mes)
+        if not hasattr(self.universe.atoms[0], 'charge'):
+            mes = ('The atoms in this Universe do not have charge defined.'
+                   'Try a format with defined charge.')
+            log.error(mes)
+            raise ValueError(mes)
+        if not hasattr(self.universe.atoms[0], 'position'):
+            mes = ('The atoms in this Universe do not have position defined.'
+                   'Try a format with defined positions or also load in a '
+                   'trajectory file (can just be a pdb or xyz file).')
+            log.error(mes)
+            raise ValueError(mes)
 
     class SelectionError(ValueError):
         pass
