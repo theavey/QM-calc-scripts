@@ -26,6 +26,7 @@ A set of tools for setting up Gaussian ONIOM calculations
 ########################################################################
 
 import collections
+import logging
 import re
 from typing import List, Union, Tuple, Dict
 
@@ -34,6 +35,8 @@ import numpy as np
 import parmed
 
 __all__ = ['OniomUniverse']
+
+log = logging.getLogger(__name__)
 
 
 class NoStructureException(Exception):
@@ -74,6 +77,7 @@ class OniomStructure(object):
             OniomUniverse).
             If False, all parameters will be given.
         """
+        log.debug('Initializing OniomStructure object')
         _struc_args = list() if structure_args is None else structure_args
         _struc_kwargs = dict() if structure_kwargs is None else structure_kwargs
         if structure_file is not None:
@@ -82,6 +86,7 @@ class OniomStructure(object):
             if (structure_file is None and
                     structure_args is None and
                     structure_kwargs is None):
+                log.warning('No arguments given to initialize OniomStructure')
                 raise NoStructureException
             else:
                 self.structure = parmed.load_file(*_struc_args,
@@ -120,6 +125,7 @@ class OniomStructure(object):
         # atom types for which it should be used (possibly using
         # wildcards), or just iterate over all bonds/angles/dihedrals
         # instead of iterating over *_types.
+        log.debug('Creating params_section in OniomStructure')
         lines = list()
         types = self._types_dict[self.only_unique_types]
         if self.only_used_terms and self.atoms_used_indices is not None:
@@ -377,6 +383,7 @@ class OniomUniverse(object):
             commands (0 for unfrozen, -1 for frozen).
             Default is `{'H': 0, 'L': -1}`
         """
+        log.debug('Initializing OniomUniverse object')
         univ_args = list() if univ_args is None else univ_args
         # probably invalid anyway because Universe can't be kwarg only
         univ_kwargs = dict() if univ_kwargs is None else univ_kwargs
@@ -411,6 +418,7 @@ class OniomUniverse(object):
 
         :return: The lines to be written into the input
         """
+        log.debug('Creating molecule section for OniomUniverse')
         if self.high_select is None or self.low_select is None:
             raise self.SelectionError('Both `high_select` and `low_select` '
                                       'must be specified')
@@ -418,6 +426,8 @@ class OniomUniverse(object):
         low_atoms = self.universe.select_atoms(self.low_select)
         n_atoms_in_both = high_atoms.intersection(low_atoms).n_atoms
         if n_atoms_in_both and not self.overlap_okay:
+            log.error('High and low selections are not mutually exclusive and '
+                      'overlap_okay is not True')
             raise ValueError('The selections are not mutually exclusive. '
                              'Make mutually exclusive or set overlap_okay=True')
         atoms_used_indices = []
@@ -436,6 +446,8 @@ class OniomUniverse(object):
             self.atom_to_line_num[atom] = line_num
         sel_n_atoms = (high_atoms.n_atoms + low_atoms.n_atoms - n_atoms_in_both)
         if line_num != sel_n_atoms:
+            log.error('Number of lines and n_atoms in selections differ '
+                      f'({line_num} and {sel_n_atoms})')
             raise ValueError('Number of lines and n_atoms in selections differ '
                              f'({line_num} and {sel_n_atoms})')
         self.n_atoms_in_input = sel_n_atoms
@@ -451,7 +463,9 @@ class OniomUniverse(object):
         :return: The lines to be written in the input after the molecule
             specification
         """
+        log.debug('Creating bonds section for OniomUniverse')
         if self.n_atoms_in_input == 0:
+            log.error('No atoms yet picked for this OniomUniverse')
             raise ValueError('No atoms have been put into the molecule '
                              'specification yet so the bonds cannnot yet be '
                              'defined. Either run `molecule_section` '
@@ -474,6 +488,8 @@ class OniomUniverse(object):
     @property
     def params_section(self):
         if self.oniom_structure is None:
+            log.warning('No structure for this OniomUniverse but '
+                        'params_section was accessed')
             raise NoStructureException('No Structure given for this '
                                        'OniomUniverse')
         else:
