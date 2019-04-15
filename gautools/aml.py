@@ -61,12 +61,16 @@ if not sys.version_info >= (3, 6):
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
-handler = logging.StreamHandler()
-handler.setLevel(logging.WARNING)
-formatter = logging.Formatter('%(asctime)s - %(name)s - '
-                              '%(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-log.addHandler(handler)
+
+
+def _setup_log(level=logging.WARNING):
+    global handler
+    handler = logging.StreamHandler()
+    handler.setLevel(level=level)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - '
+                                  '%(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    log.addHandler(handler)
 
 
 obabel_module_lines = ('\n'
@@ -1117,8 +1121,14 @@ if __name__ == '__main__':
                         help='Folders or paths to status files to report the '
                              'status of. If nothing is given, status files in '
                              'current directly will be used. This flag cannot '
-                             'be used with any other arguments.')
+                             'be used with any other arguments other than -v.')
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='If used, the stdout log will be set to DEBUG')
     p_args = parser.parse_args()
+    if p_args.verbose:
+        _setup_log(logging.DEBUG)
+    else:
+        _setup_log()
     if p_args.job_status is not None:
         status_df = get_job_statuses(p_args.job_status)
         print(status_df)
