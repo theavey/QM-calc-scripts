@@ -1024,19 +1024,25 @@ class StatusDict(dict):
 
 
 def _check_environ():
+    log.debug('Checking and setting environment variables')
     if os.environ.get('SGE_ROOT', None) is None:
         raise ValueError('SGE_ROOT is not defined')
     if os.environ.get('SGE_CELL', None) is None:
+        log.debug('Setting SGE_CELL to default')
         os.environ['SGE_CELL'] = 'default'
     if os.environ.get('DRMAA_LIBRARY_PATH', None) is None:
-        os.environ['DRMAA_LIBRARY_PATH'] = (
-            f"{os.environ['SGE_ROOT']}/lib/linux-x64/libdrmaa.so")
+        lib_path = pathlib.Path(
+            f"{os.environ['SGE_ROOT']}/lib/linux-x64/libdrmaa.so").resolve()
+        log.debug(f'Setting DRMAA_LIBRARY_PATH to {lib_path}')
+        os.environ['DRMAA_LIBRARY_PATH'] = str(lib_path)
 
 
 def _process_paths(paths) -> List[pathlib.Path]:
+    log.debug('Processing input paths list')
     statuses = list()
     if not paths:
-        return [pathlib.Path.cwd()]
+        log.debug('paths was empty; using current directory')
+        paths = [pathlib.Path.cwd()]
     for path in paths:
         path = pathlib.Path(path)
         if path.is_file():
@@ -1046,11 +1052,15 @@ def _process_paths(paths) -> List[pathlib.Path]:
             jsons = path.glob('*.json')
             for j in jsons:
                 statuses.append(j)
+    log.debug(f'Found {len(statuses)} json files to process')
+    return statuses
 
 
 def get_job_statuses(paths: List[str], df: pd.DataFrame = None):
+    log.info('Getting job statuses')
     _check_environ()
     import drmaa
+    log.debug('Imported DRMAA package')
     statuses = _process_paths(paths)
     if df is None:
         df = pd.DataFrame(
@@ -1060,7 +1070,9 @@ def get_job_statuses(paths: List[str], df: pd.DataFrame = None):
         )
         df.drop(labels=[0], axis=0, inplace=True)
     with drmaa.Session() as session:
+        log.debug('Opened DRMAA session and finding job statuses')
         for f_status in statuses:
+            log.debug(f'Trying file {f_status}')
             name = f_status.stem
             m = re.search(r'(.*)-ind(\d+)', name)
             if m is None:
