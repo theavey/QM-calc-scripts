@@ -39,6 +39,7 @@ import logging
 import MDAnalysis as mda
 import numpy as np
 import os
+import pandas as pd
 import paratemp
 from paratemp.geometries import XYZ
 import pathlib
@@ -1018,6 +1019,62 @@ class StatusDict(dict):
                 raise ke
 
 
+def _check_environ():
+    if os.environ.get('SGE_ROOT', None) is None:
+        raise ValueError('SGE_ROOT is not defined')
+    if os.environ.get('SGE_CELL', None) is None:
+        os.environ['SGE_CELL'] = 'default'
+    if os.environ.get('DRMAA_LIBRARY_PATH', None) is None:
+        os.environ['DRMAA_LIBRARY_PATH'] = (
+            f"{os.environ['SGE_ROOT']}/lib/linux-x64/libdrmaa.so")
+
+
+def _process_paths(paths) -> List[pathlib.Path]:
+    statuses = list()
+    if not paths:
+        return [pathlib.Path.cwd()]
+    for path in paths:
+        path = pathlib.Path(path)
+        if path.is_file():
+            statuses.append(path)
+            continue
+        if path.is_dir():
+            jsons = path.glob('*.json')
+            for j in jsons:
+                statuses.append(j)
+
+
+def get_job_statuses(paths: List[str], df: pd.DataFrame = None):
+    _check_environ()
+    import drmaa
+    statuses = _process_paths(paths)
+    if df is None:
+        df = pd.DataFrame(
+            {'system': ['str'], 'index': [0],
+             'running_sr': [False], 'running_qr': [False],
+             'current_lvl': [0], 'gaussian_failed': [False]},
+        )
+        df.drop(labels=[0], axis=0, inplace=True)
+    with drmaa.Session() as session:
+        for f_status in statuses:
+            name = f_status.stem
+            m = re.search(r'(.*)-ind(\d+)', name)
+            if m is None:
+                continue
+            system, index = m.groups()
+            d_status = json.load(f_status.open('r'))
+            running = bool(d_status['running'])
+            job_id = d_status['job_id']
+            try:
+                q_running = session.jobStatus(job_id)
+            except drmaa.InvalidJobException:
+                q_running = None
+            lvl = int(d_status['current_lvl'])
+            failed = d_status['gaussian_failed']
+            df.loc[name] = system, int(index), running, q_running, lvl, failed
+    return df.sort_values(['system', 'index'])
+
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -1056,8 +1113,17 @@ if __name__ == '__main__':
     parser.add_argument('--restart', default=None,
                         help='Path to status file for resuming an already '
                              'started calculation')
+    parser.add_argument('-j', '--job_status', nargs='*', default=None,
+                        help='Folders or paths to status files to report the '
+                             'status of. If nothing is given, status files in '
+                             'current directly will be used. This flag cannot '
+                             'be used with any other arguments.')
     p_args = parser.parse_args()
-    if p_args.restart is not None:
+    if p_args.job_status is not None:
+        status_df = get_job_statuses(p_args.job_status)
+        print(status_df)
+        sys.exit(0)
+    elif p_args.restart is not None:
         calc = Calc(status=p_args.restart)
     else:
         _mgi_dicts = json.load(open(p_args.mgi_dicts, 'r'))
