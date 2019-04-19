@@ -1069,7 +1069,10 @@ def get_job_statuses(paths: List[str], df: pd.DataFrame = None):
              'current_lvl': [0], 'gaussian_failed': [False]},
         )
         df.drop(labels=[0], axis=0, inplace=True)
+    signal.alarm(10)  # try to open session for 10 seconds (freezes with some
+    # unidentified problems with drmaa
     with drmaa.Session() as session:
+        signal.alarm()  # clear timer if successfully opened session
         log.debug('Opened DRMAA session and finding job statuses')
         for f_status in statuses:
             log.debug(f'Trying file {f_status}')
