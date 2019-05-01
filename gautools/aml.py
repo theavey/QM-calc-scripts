@@ -43,6 +43,7 @@ import pandas as pd
 import paratemp
 from paratemp.geometries import XYZ
 import pathlib
+import random
 import re
 import shutil
 import signal
@@ -409,7 +410,7 @@ class Calc(object):
                 time.sleep(5)
                 continue
         frames = u.select_frames(self.criteria, 'QM_frames')
-        select = np.random.choice(frames)
+        select = random.choice(frames)
         self.status['source_frame_num'] = int(select)
         system: mda.AtomGroup = u.select_atoms('all')
         xyz_name = self._base_name + '.xyz'
@@ -441,15 +442,22 @@ class Calc(object):
     def new_calc(self):
         self.log.debug('Setting up a new calculation')
         self.current_lvl = 0
-        if self.geometry is None:
-            xyz_path = self._make_rand_xyz()
-        else:
+        if self.geometry is not None:
             self.log.debug(f'Using provided geometry from {self.geometry}')
             xyz_path = pathlib.Path(self.geometry).resolve()
+        elif self.oniom:
+            self.log.debug('Using geometry from ONIOM inputs')
+            xyz_path = 'oniom_input'
+        else:
+            xyz_path = self._make_rand_xyz()
         if self.react_dist:
-            self._move_reactant_atoms(xyz_path)
+            if self.oniom:
+                self.log.warning('ONIOM calculation with react_dist not '
+                                 'implemented. Ignoring react_dist.')
+            else:
+                self._move_reactant_atoms(xyz_path)
         self.status['starting_xyz'] = str(xyz_path)
-        if not xyz_path.exists():
+        if not self.oniom and not xyz_path.exists():
             raise FileNotFoundError('Could not find start geometry that was '
                                     f'supposed to be at {xyz_path}')
         com_name = self._make_g_in(xyz_path)
